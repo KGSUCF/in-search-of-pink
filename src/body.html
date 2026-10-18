@@ -1,0 +1,40 @@
+<div class="wrap">
+  <header class="masthead">
+    <h1 class="brand"><small>In search of</small><span>Pink</span></h1>
+    <button id="menuBtn" class="icon-btn" type="button" aria-label="Share or import the list">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="2.2"/><circle cx="12" cy="12" r="2.2"/><circle cx="19" cy="12" r="2.2"/></svg>
+    </button>
+  </header>
+  <p class="sub">Which Fort Lauderdale restaurants have Sweet&rsquo;N Low in the sugar caddy</p>
+</div>
+
+<div class="bar">
+  <div class="wrap">
+    <label class="search" for="q">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg>
+      <input id="q" type="search" placeholder="Which restaurant?" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search" aria-label="Search restaurants">
+      <button id="clearQ" class="clear" type="button" aria-label="Clear search" hidden>&times;</button>
+    </label>
+    <div class="filters" id="filters" aria-label="Show">
+      <button class="chip" type="button" data-f="all" aria-pressed="true">All <b data-n="all">0</b></button>
+      <button class="chip" type="button" data-f="pink" aria-pressed="false">Pink <b data-n="pink">0</b></button>
+      <button class="chip" type="button" data-f="no" aria-pressed="false">No <b data-n="no">0</b></button>
+      <button class="chip" type="button" data-f="unknown" aria-pressed="false">Not checked <b data-n="unknown">0</b></button>
+    </div>
+  </div>
+</div>
+
+<main class="wrap">
+  <p id="storageNotice" class="notice" hidden>This window can&rsquo;t save changes, so anything you add or fix here disappears when you close it.</p>
+  <ul id="list" class="list" aria-label="Restaurants"></ul>
+  <div id="empty" class="empty" hidden></div>
+</main>
+
+<button id="addBtn" class="btn fab" type="button">
+  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+  Add restaurant
+</button>
+
+<div id="scrim" class="scrim" hidden></div>
+<section id="sheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" hidden></section>
+<div id="toast" class="toast" role="status" aria-live="polite" hidden><span id="toastMsg"></span><button id="toastUndo" type="button">Undo</button></div>
