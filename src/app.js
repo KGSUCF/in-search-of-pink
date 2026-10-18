@@ -2,6 +2,8 @@
   'use strict';
 
   var KEY = 'inSearchOfPink.v1';
+  var SYNC_KEY = 'inSearchOfPink.sync';
+  var PEND_KEY = 'inSearchOfPink.pending';
   var SEED = [
     ['Boathouse', 'no'], ['Doc B’s', 'pink'], ['Tap 42', 'pink'], ['YOT', 'no'],
     ['Louie Bossi', 'no'], ['Big City', 'no'], ['Moxies', 'pink'], ['El Camino', 'no'],
@@ -21,13 +23,21 @@
 
   var items = [];
   var filter = 'all';
-  var undoSnap = null;
+  var undoOps = null;
   var toastTimer = 0;
   var lastFocus = null;
   var sheetOpen = false;
   var prevQuery = '';
+  var IS_APP = !!document.querySelector('link[rel="manifest"]');
   var useHistory = (function () { try { return window.top === window.self; } catch (e) { return false; } })();
   var collator = new Intl.Collator('en', { numeric: true, sensitivity: 'base' });
+
+  // Shared list
+  var sync = { url: null, sheetUrl: '', last: 0 };
+  var syncState = 'off';           // off | busy | ok | offline | error
+  var pending = [];
+  var syncing = null, syncAgain = false;
+  var installEvent = null;
 
   function $(s, root) { return (root || document).querySelector(s); }
   function $$(s, root) { return Array.prototype.slice.call((root || document).querySelectorAll(s)); }
@@ -37,7 +47,7 @@
   /* ---------- helpers ---------- */
   function uid() {
     try { if (window.crypto && crypto.randomUUID) return crypto.randomUUID(); } catch (e) {}
-    return 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    return 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
   }
   function norm(s) {
     return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
@@ -60,6 +70,7 @@
     if (p.length !== 3 || !p[0]) return '';
     return new Date(p[0], p[1] - 1, p[2]).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   }
+  function clock(ms) { return new Date(ms).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }); }
   function byId(id) { for (var i = 0; i < items.length; i++) if (items[i].id === id) return items[i]; return null; }
   function findByName(name, exceptId) {
     var k = squash(name);
@@ -71,33 +82,38 @@
   }
   function sorted(arr) { return arr.slice().sort(function (a, b) { return collator.compare(a.name, b.name); }); }
   function snap() { return JSON.stringify(items); }
+  function copyItem(x) { return { id: x.id, name: x.name, status: x.status, updated: x.updated || null }; }
 
   /* ---------- storage ---------- */
   function valid(it) {
     return it && typeof it.name === 'string' && it.name.trim() && ['pink', 'no', 'unknown'].indexOf(it.status) > -1;
   }
+  function readJSON(key) {
+    try { var raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : null; } catch (e) { return null; }
+  }
   function load() {
-    var stored = null;
-    try { stored = localStorage.getItem(KEY); } catch (e) {}
-    if (stored) {
-      try {
-        var d = JSON.parse(stored);
-        if (d && Array.isArray(d.items)) {
-          return d.items.filter(valid).map(function (it) {
-            return { id: it.id || uid(), name: it.name, status: it.status, updated: it.updated || null };
-          });
-        }
-      } catch (e) {}
+    var d = readJSON(KEY);
+    if (d && Array.isArray(d.items)) {
+      return d.items.filter(valid).map(function (it) { var c = copyItem(it); c.id = c.id || uid(); return c; });
     }
-    var fresh = SEED.map(function (r) { return { id: uid(), name: r[0], status: r[1], updated: null }; });
-    items = fresh;
+    items = SEED.map(function (r) { return { id: uid(), name: r[0], status: r[1], updated: null }; });
     save();
-    return fresh;
+    return items;
   }
   function save() {
     var ok = true;
-    try { localStorage.setItem(KEY, JSON.stringify({ v: 1, items: items })); } catch (e) { ok = false; }
+    try {
+      localStorage.setItem(KEY, JSON.stringify({ v: 1, items: items }));
+      localStorage.setItem(PEND_KEY, JSON.stringify(pending));
+      if (sync.url) localStorage.setItem(SYNC_KEY, JSON.stringify(sync));
+      else localStorage.removeItem(SYNC_KEY);
+    } catch (e) { ok = false; }
     $('#storageNotice').hidden = ok;
+  }
+  function loadSync() {
+    var s = readJSON(SYNC_KEY), p = readJSON(PEND_KEY);
+    if (s && validUrl(s.url)) sync = { url: s.url, sheetUrl: s.sheetUrl || '', last: s.last || 0 };
+    pending = (sync.url && Array.isArray(p)) ? p : [];
   }
 
   /* ---------- list ---------- */
@@ -132,6 +148,7 @@
         '</span>' + packet(it.status) + '</button></li>';
     }).join('');
 
+    renderSyncLine();
     if (shown.length) { emptyEl.hidden = true; emptyEl.innerHTML = ''; return; }
     emptyEl.hidden = false;
     if (raw) {
@@ -148,25 +165,188 @@
     }
   }
 
+  /* ---------- changes: diff into operations the shared list understands ---------- */
+  function setOp(it) { return { op: 'set', id: it.id, name: it.name, status: it.status, updated: it.updated || null }; }
+  function diffOps(fromArr, toArr) {
+    var from = {}, to = {}, ops = [];
+    fromArr.forEach(function (x) { from[x.id] = x; });
+    toArr.forEach(function (x) { to[x.id] = x; });
+    toArr.forEach(function (x) {
+      var o = from[x.id];
+      if (!o || o.name !== x.name || o.status !== x.status) ops.push(setOp(x));
+    });
+    fromArr.forEach(function (x) { if (!to[x.id]) ops.push({ op: 'delete', id: x.id }); });
+    return ops;
+  }
+  // Mirrors the Google Sheet script, so the phone shows what the shared list will hold.
+  function applyOps(list, ops) {
+    list = list.map(copyItem);
+    ops.forEach(function (op) {
+      if (!op) return;
+      if (op.op === 'delete') { list = list.filter(function (x) { return x.id !== op.id; }); return; }
+      if (op.op !== 'set' || !op.name) return;
+      var it = null, sameId = false, i;
+      for (i = 0; i < list.length && !it; i++) if (list[i].id === op.id) { it = list[i]; sameId = true; }
+      for (i = 0; i < list.length && !it; i++) if (squash(list[i].name) === squash(op.name)) it = list[i];
+      if (!it) { it = { id: op.id, name: op.name, updated: null }; list.push(it); }
+      else if (sameId) it.name = op.name;
+      it.status = op.status;
+      if (op.updated) it.updated = op.updated;
+    });
+    return list;
+  }
+  function commit(msg, beforeJSON) {
+    var before = JSON.parse(beforeJSON);
+    var ops = diffOps(before, items);
+    var inverse = diffOps(items, before);
+    if (sync.url && ops.length) pending = pending.concat(ops);
+    save();
+    render();
+    showToast(msg, inverse.length ? inverse : null);
+    if (ops.length) runSync();
+  }
+
   /* ---------- toast + undo ---------- */
-  function showToast(msg, before) {
-    undoSnap = before || null;
+  function showToast(msg, ops) {
+    undoOps = ops || null;
     $('#toastMsg').textContent = msg;
-    $('#toastUndo').hidden = !undoSnap;
+    $('#toastUndo').hidden = !undoOps;
     toastEl.hidden = false;
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(hideToast, undoSnap ? 6500 : 2500);
+    toastTimer = setTimeout(hideToast, undoOps ? 6500 : 3000);
   }
-  function hideToast() { toastEl.hidden = true; undoSnap = null; }
-  function commit(msg, before) { save(); render(); showToast(msg, before); }
+  function hideToast() { toastEl.hidden = true; undoOps = null; }
   $('#toastUndo').addEventListener('click', function () {
-    if (undoSnap) { items = JSON.parse(undoSnap); save(); render(); }
+    if (undoOps) {
+      var ops = undoOps;
+      items = applyOps(items, ops);
+      if (sync.url) pending = pending.concat(ops);
+      save();
+      render();
+      runSync();
+    }
     showToast('Change undone.', null);
   });
+
+  /* ---------- shared list: talking to the Google Sheet ---------- */
+  function validUrl(u) {
+    u = String(u || '').trim();
+    if (/^https:\/\/script\.google\.com\/(a\/[^/\s]+\/)?macros\/s\/[\w-]+\/exec\/?$/.test(u)) return true;
+    var local = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+    return local && /^http:\/\/(localhost|127\.0\.0\.1):\d+\//.test(u);
+  }
+  function api(url, ops) {
+    var opts = { redirect: 'follow', cache: 'no-store' }, target = url;
+    if (ops) {
+      opts.method = 'POST';
+      opts.headers = { 'Content-Type': 'text/plain;charset=utf-8' };
+      opts.body = JSON.stringify({ ops: ops });
+    } else {
+      opts.method = 'GET';
+      target = url + (url.indexOf('?') > -1 ? '&' : '?') + 't=' + Date.now();
+    }
+    var timer = 0;
+    if (window.AbortController) {
+      var ctrl = new AbortController();
+      opts.signal = ctrl.signal;
+      timer = setTimeout(function () { ctrl.abort(); }, 25000);
+    }
+    return fetch(target, opts).then(function (r) {
+      if (!r.ok) throw new Error('status ' + r.status);
+      return r.json();
+    }).then(function (d) {
+      clearTimeout(timer);
+      if (!d || !d.ok || !Array.isArray(d.items)) throw new Error((d && d.error) || 'unexpected reply');
+      return d;
+    }, function (e) { clearTimeout(timer); throw e; });
+  }
+  function adopt(d) {
+    items = applyOps(d.items.filter(valid), pending);
+    if (d.sheetUrl) sync.sheetUrl = d.sheetUrl;
+    sync.last = Date.now();
+  }
+  function runSync() {
+    if (!sync.url) return Promise.resolve();
+    if (syncing) { syncAgain = true; return syncing; }
+    var url = sync.url, sent = pending.slice();
+    setSyncState('busy');
+    syncing = api(url, sent.length ? sent : null).then(function (d) {
+      if (sync.url !== url) return;
+      pending = pending.slice(sent.length);
+      adopt(d);
+      save();
+      setSyncState('ok');
+      render();
+    }).catch(function () {
+      if (sync.url !== url) return;
+      setSyncState(navigator.onLine === false ? 'offline' : 'error');
+    }).then(function () {
+      syncing = null;
+      if (syncAgain) { syncAgain = false; return runSync(); }
+    });
+    return syncing;
+  }
+  // First connection: an empty sheet gets this phone's list; otherwise the shared list wins,
+  // and anything added or changed only on this phone that the sheet lacks is added to it.
+  function connect(url) {
+    url = String(url).trim().replace(/\/$/, '');
+    return api(url, null).then(function (d) {
+      var server = d.items.filter(valid);
+      var ops = server.length
+        ? items.filter(function (it) {
+            return it.updated && !server.some(function (s) { return squash(s.name) === squash(it.name); });
+          }).map(setOp)
+        : items.map(setOp);
+      return (ops.length ? api(url, ops) : Promise.resolve(d)).then(function (d2) {
+        sync = { url: url, sheetUrl: d2.sheetUrl || '', last: Date.now() };
+        pending = [];
+        adopt(d2);
+        save();
+        setSyncState('ok');
+        render();
+        return { started: !server.length, added: server.length ? ops.length : 0, total: items.length };
+      });
+    });
+  }
+  function disconnect() {
+    sync = { url: null, sheetUrl: '', last: 0 };
+    pending = [];
+    save();
+    setSyncState('off');
+    render();
+  }
+  function inviteLink() {
+    return location.origin + location.pathname + '#join=' + encodeURIComponent(sync.url);
+  }
+  function setSyncState(s) { syncState = s; renderSyncLine(); }
+  function syncSummary() {
+    var n = pending.length, waiting = n ? n + ' change' + (n === 1 ? '' : 's') + ' will sync when it connects' : '';
+    if (syncState === 'busy') return 'Syncing…';
+    if (syncState === 'ok') return 'Shared list · up to date ' + clock(sync.last);
+    if (syncState === 'offline') return 'No connection · ' + (waiting || 'showing the last copy');
+    if (syncState === 'error') return 'Can’t reach the shared list · ' + (waiting || 'tap to try again');
+    return 'On this phone only · Share with another phone';
+  }
+  function sheetStateText() {
+    var n = pending.length, waiting = n ? ' ' + n + ' change' + (n === 1 ? '' : 's') + ' will sync when it connects.' : '';
+    if (syncState === 'busy') return 'Syncing\u2026';
+    if (syncState === 'ok') return 'Up to date as of ' + clock(sync.last) + '.';
+    if (syncState === 'offline') return 'No connection right now.' + waiting;
+    return 'Can\u2019t reach the Google Sheet right now.' + waiting;
+  }
+  function renderSyncLine() {
+    var line = $('#syncLine');
+    if (!IS_APP) { line.hidden = true; return; }
+    if (!sync.url) syncState = 'off';
+    line.hidden = false;
+    line.setAttribute('data-state', syncState);
+    $('#syncText').textContent = syncSummary();
+  }
 
   /* ---------- sheet ---------- */
   function openSheet(html, focusSel) {
     if (!sheetOpen) lastFocus = document.activeElement;
+    hideToast();
     sheetEl.innerHTML = '<div class="sheet-inner"><div class="grab" aria-hidden="true"></div>' + html + '</div>';
     sheetEl.hidden = false;
     scrimEl.hidden = false;
@@ -201,6 +381,7 @@
           (on ? '<span class="now">Now</span>' : '') + '</button>';
       }).join('') + '</div></fieldset>';
   }
+  function gone() { closeSheet(); showToast('That restaurant was just removed on another phone.', null); }
 
   /* Add */
   function openAdd(prefill) {
@@ -267,26 +448,30 @@
     );
     $$('.choice', sheetEl).forEach(function (b) {
       b.addEventListener('click', function () {
-        var status = b.getAttribute('data-status');
-        if (status === it.status) { closeSheet(); return; }
+        var cur = byId(id), status = b.getAttribute('data-status');
+        if (!cur) { gone(); return; }
+        if (status === cur.status) { closeSheet(); return; }
         var before = snap();
-        it.status = status;
-        it.updated = todayISO();
+        cur.status = status;
+        cur.updated = todayISO();
         closeSheet();
-        commit(it.name + ' is now ' + SAY[status] + '.', before);
+        commit(cur.name + ' is now ' + SAY[status] + '.', before);
       });
     });
     var input = $('#fName', sheetEl), btn = $('#renameBtn', sheetEl), msg = $('#renameMsg', sheetEl);
     function check() {
-      var name = tidy(input.value), clash = findByName(name, it.id);
-      btn.disabled = !name || name === it.name || !!clash;
+      var cur = byId(id) || it, name = tidy(input.value), clash = findByName(name, id);
+      btn.disabled = !name || name === cur.name || !!clash;
       msg.hidden = !clash;
       if (clash) msg.textContent = clash.name + ' is already on the list.';
     }
     function rename() {
       if (btn.disabled) return;
+      var cur = byId(id);
+      if (!cur) { gone(); return; }
       var before = snap(), name = tidy(input.value);
-      it.name = name;
+      cur.name = name;
+      cur.updated = todayISO();
       closeSheet();
       commit('Renamed to ' + name + '.', before);
     }
@@ -299,8 +484,10 @@
         '<div class="actions"><button type="button" class="btn" id="delYes">Remove</button>' +
         '<button type="button" class="btn quiet" id="delNo">Keep it</button></div></div>';
       $('#delYes', area).addEventListener('click', function () {
-        var before = snap(), name = it.name;
-        items = items.filter(function (x) { return x.id !== it.id; });
+        var cur = byId(id);
+        if (!cur) { gone(); return; }
+        var before = snap(), name = cur.name;
+        items = items.filter(function (x) { return x.id !== id; });
         closeSheet();
         commit('Removed ' + name + '.', before);
       });
@@ -315,21 +502,136 @@
   }
 
   /* Menu */
+  var ICON_SYNC = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8"/><path d="M4 3v5h5"/><path d="M4 13a8 8 0 0 0 14.3 4.9L20 16"/><path d="M20 21v-5h-5"/></svg>';
   var ICON_SHARE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3M7.5 7.5 12 3l4.5 4.5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>';
   var ICON_IMPORT = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7.5 10.5 12 15l4.5-4.5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>';
   function openMenu() {
     openSheet(
       '<h2 id="sheetTitle" tabindex="-1">The list</h2>' +
-      '<p class="meta">' + items.length + ' restaurants saved on this phone</p>' +
-      '<div><button type="button" class="menu-item" data-act="share">' + ICON_SHARE +
-      '<span>Share the list<small>Send it in a text, or keep a copy as a backup</small></span></button>' +
+      '<p class="meta">' + items.length + ' restaurants' + (sync.url ? ', shared' : ' saved on this phone') + '</p>' +
+      '<div>' +
+      (IS_APP ? '<button type="button" class="menu-item" data-act="shared">' + ICON_SYNC +
+        '<span>' + (sync.url ? 'Shared list' : 'Share with another phone') +
+        '<small>' + (sync.url ? 'Invite a phone, sync now, open the spreadsheet' : 'One list for both phones, kept in a Google Sheet') + '</small></span></button>' : '') +
+      '<button type="button" class="menu-item" data-act="share">' + ICON_SHARE +
+      '<span>Send the list as text<small>For a text message, or a backup copy</small></span></button>' +
       '<button type="button" class="menu-item" data-act="import">' + ICON_IMPORT +
-      '<span>Import a list<small>Paste a list shared from this app</small></span></button></div>' +
+      '<span>Import a list<small>Paste a list sent from this app</small></span></button></div>' +
       '<div class="actions"><button type="button" class="btn quiet" data-act="close">Close</button></div>'
     );
   }
 
-  /* Share */
+  /* Copy helper shared by the text-list and invite sheets */
+  function wireCopy(text, ta, out, okMsg) {
+    function selectAll() { ta.focus(); ta.select(); try { ta.setSelectionRange(0, text.length); } catch (e) {} }
+    function fallback() {
+      selectAll();
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) {}
+      out.textContent = ok ? okMsg : 'The text is selected. Use your phone’s Copy.';
+    }
+    return function () {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function () { out.textContent = okMsg; }, fallback);
+      } else { fallback(); }
+    };
+  }
+
+  /* Shared list */
+  function openShared(note) {
+    if (!IS_APP) return;
+    if (!sync.url) {
+      openSheet(
+        '<h2 id="sheetTitle" tabindex="-1">Share with another phone</h2>' +
+        '<p class="meta">Keep one list for both phones. It lives in a Google Sheet you own, and a change on either phone shows up on the other.</p>' +
+        '<p class="hint">Got an invite link from someone? Open that link in Chrome instead; it connects this phone for you.</p>' +
+        '<div class="field"><label for="syncUrl">Web app link from Google</label>' +
+        '<input id="syncUrl" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://script.google.com/macros/s/…/exec"></div>' +
+        '<p id="syncMsg" class="warn"' + (note ? '' : ' hidden') + '>' + esc(note || '') + '</p>' +
+        '<div class="actions"><button type="button" class="btn" id="connectBtn" disabled>Connect</button>' +
+        '<button type="button" class="btn quiet" data-act="close">Not now</button></div>' +
+        '<details class="steps"><summary>How to get the link (about 10 minutes, on a computer)</summary><ol>' +
+        '<li>Create a new Google Sheet and name it <b>In Search of Pink</b>.</li>' +
+        '<li>Choose <b>Extensions › Apps Script</b>. Delete what’s there, paste in the script from the <b>google-sheet</b> folder of your GitHub repository, and click Save.</li>' +
+        '<li>Click <b>Deploy › New deployment</b>, pick <b>Web app</b>, set <b>Execute as: Me</b> and <b>Who has access: Anyone</b>, then Deploy.</li>' +
+        '<li>Allow access when Google asks. It warns that the app isn’t verified because you wrote it yourself: choose <b>Advanced</b>, then <b>Go to</b> the project.</li>' +
+        '<li>Copy the <b>Web app URL</b>, email it to yourself, and paste it above.</li></ol></details>',
+        null
+      );
+      var input = $('#syncUrl', sheetEl), btn = $('#connectBtn', sheetEl), msg = $('#syncMsg', sheetEl);
+      input.addEventListener('input', function () {
+        var v = input.value.trim();
+        btn.disabled = !v;
+        if (v && !validUrl(v) && /\/dev\/?$/.test(v)) { msg.hidden = false; msg.textContent = 'That is the test link. Use the Web app URL that ends in /exec.'; }
+        else msg.hidden = true;
+      });
+      btn.addEventListener('click', function () {
+        var v = input.value.trim();
+        if (!validUrl(v)) {
+          msg.hidden = false;
+          msg.textContent = 'That doesn’t look like the Web app link. It starts with https://script.google.com/macros/s/ and ends in /exec.';
+          return;
+        }
+        btn.disabled = true;
+        btn.textContent = 'Connecting…';
+        connect(v).then(function (r) {
+          openSharedConnected(r.started
+            ? 'The shared list is set up with ' + r.total + ' restaurants. Now invite the other phone.'
+            : 'Connected. This phone now shows the shared list.' + (r.added ? ' ' + r.added + ' restaurant' + (r.added === 1 ? '' : 's') + ' from this phone were added to it.' : ''));
+        }, function () {
+          btn.disabled = false;
+          btn.textContent = 'Connect';
+          msg.hidden = false;
+          msg.textContent = 'Couldn’t reach the shared list at that link. Check that you copied the whole Web app URL and that “Who has access” is set to Anyone.';
+        });
+      });
+      return;
+    }
+    openSharedConnected();
+  }
+  function openSharedConnected(note) {
+    var link = inviteLink(), canShare = typeof navigator.share === 'function';
+    openSheet(
+      '<h2 id="sheetTitle" tabindex="-1">Shared list</h2>' +
+      '<p class="meta" id="sharedState">' + esc(sheetStateText()) + '</p>' +
+      (note ? '<p class="good">' + esc(note) + '</p>' : '') +
+      '<div class="field"><label for="inviteText">Invite another phone</label>' +
+      '<textarea id="inviteText" class="short" readonly rows="3">' + esc(link) + '</textarea></div>' +
+      '<p class="hint">Send this link to the other phone. Opening it in Chrome connects that phone; then use Chrome’s menu to install the app. Anyone with the link can change the list, so only send it to people you trust with it.</p>' +
+      '<div class="actions">' + (canShare ? '<button type="button" class="btn" id="sendInvite">Send…</button>' : '') +
+      '<button type="button" class="btn' + (canShare ? ' quiet' : '') + '" id="copyInvite">Copy link</button></div>' +
+      '<p class="hint" id="inviteMsg" role="status"></p>' +
+      '<div class="actions"><button type="button" class="btn quiet" id="syncNow">Sync now</button>' +
+      (sync.sheetUrl ? '<a class="btn quiet" href="' + esc(sync.sheetUrl) + '" target="_blank" rel="noopener">Open the sheet</a>' : '') + '</div>' +
+      '<div id="stopArea"><button type="button" class="link danger" id="stopBtn">Stop sharing on this phone</button></div>' +
+      '<div><button type="button" class="link" data-act="close">Close</button></div>'
+    );
+    var ta = $('#inviteText', sheetEl), out = $('#inviteMsg', sheetEl);
+    $('#copyInvite', sheetEl).addEventListener('click', wireCopy(link, ta, out, 'Link copied. Paste it into a text to the other phone.'));
+    if (canShare) {
+      $('#sendInvite', sheetEl).addEventListener('click', function () {
+        navigator.share({ title: 'In Search of Pink', text: 'Join our pink-packet list: open this in Chrome, then install the app.', url: link })
+          .catch(function (e) { if (!e || e.name !== 'AbortError') out.textContent = 'Sending didn’t work here. Use Copy link instead.'; });
+      });
+    }
+    $('#syncNow', sheetEl).addEventListener('click', function () {
+      var state = $('#sharedState', sheetEl);
+      state.textContent = 'Syncing…';
+      runSync().then(function () { if (state.isConnected) state.textContent = sheetStateText(); });
+    });
+    var area = $('#stopArea', sheetEl);
+    $('#stopBtn', sheetEl).addEventListener('click', function () {
+      var n = pending.length;
+      area.innerHTML = '<div class="confirm"><p>Stop sharing on this phone? The list stays on this phone but stops updating.' +
+        (n ? ' <strong>' + n + ' change' + (n === 1 ? ' hasn’t' : 's haven’t') + ' reached the shared list yet</strong> and will stay only on this phone.' : '') +
+        '</p><div class="actions"><button type="button" class="btn" id="stopYes">Stop sharing</button>' +
+        '<button type="button" class="btn quiet" id="stopNo">Keep sharing</button></div></div>';
+      $('#stopYes', area).addEventListener('click', function () { disconnect(); closeSheet(); showToast('This phone has stopped sharing.', null); });
+      $('#stopNo', area).addEventListener('click', function () { openSharedConnected(); });
+    });
+  }
+
+  /* Text list */
   function shareText() {
     var groups = { pink: [], no: [], unknown: [] };
     sorted(items).forEach(function (it) { groups[it.status].push(it.name); });
@@ -343,8 +645,8 @@
     var text = shareText();
     var canShare = typeof navigator.share === 'function';
     openSheet(
-      '<h2 id="sheetTitle" tabindex="-1">Share the list</h2>' +
-      '<p class="meta">Send it in a text or email. On another phone with this app, Import copies it over.</p>' +
+      '<h2 id="sheetTitle" tabindex="-1">Send the list as text</h2>' +
+      '<p class="meta">Send it in a text or email, or keep it as a backup. Import copies it into the app on another phone.</p>' +
       '<div class="field"><label for="shareText">The list as text</label>' +
       '<textarea id="shareText" readonly rows="12">' + esc(text) + '</textarea></div>' +
       '<div class="actions">' + (canShare ? '<button type="button" class="btn" id="sendBtn">Send…</button>' : '') +
@@ -353,20 +655,7 @@
       '<div><button type="button" class="link" data-act="close">Close</button></div>'
     );
     var ta = $('#shareText', sheetEl), out = $('#shareMsg', sheetEl);
-    function selectAll() { ta.focus(); ta.select(); try { ta.setSelectionRange(0, text.length); } catch (e) {} }
-    function fallback() {
-      selectAll();
-      var ok = false;
-      try { ok = document.execCommand('copy'); } catch (e) {}
-      out.textContent = ok ? 'Copied. Paste it into a text or email.' : 'The text is selected. Use your phone’s Copy.';
-    }
-    $('#copyBtn', sheetEl).addEventListener('click', function () {
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(function () {
-          out.textContent = 'Copied. Paste it into a text or email.';
-        }, fallback);
-      } else { fallback(); }
-    });
+    $('#copyBtn', sheetEl).addEventListener('click', wireCopy(text, ta, out, 'Copied. Paste it into a text or email.'));
     if (canShare) {
       $('#sendBtn', sheetEl).addEventListener('click', function () {
         navigator.share({ title: 'In Search of Pink', text: text }).catch(function (e) {
@@ -407,7 +696,7 @@
   function openImport() {
     openSheet(
       '<h2 id="sheetTitle" tabindex="-1">Import a list</h2>' +
-      '<p class="meta">Paste a list shared from this app. Restaurants you already have get their answer updated, new ones are added, and nothing is removed.</p>' +
+      '<p class="meta">Paste a list sent from this app. Restaurants you already have get their answer updated, new ones are added, and nothing is removed.</p>' +
       '<div class="field"><label for="importText">Paste the list here</label>' +
       '<textarea id="importText" rows="10" placeholder="PINK&#10;Doc B’s&#10;Tap 42&#10;&#10;NO PINK&#10;Boathouse"></textarea></div>' +
       '<p class="hint" id="importMsg" role="status">Nothing pasted yet.</p>' +
@@ -462,6 +751,7 @@
     if (act === 'close') closeSheet();
     else if (act === 'share') openShare();
     else if (act === 'import') openImport();
+    else if (act === 'shared') openShared();
     else if (act === 'edit') openEdit(b.getAttribute('data-id'));
   });
   scrimEl.addEventListener('click', function () { closeSheet(); });
@@ -483,19 +773,79 @@
   $('#clearQ').addEventListener('click', function () { qEl.value = ''; prevQuery = ''; render(); qEl.focus(); });
   $('#addBtn').addEventListener('click', function () { openAdd(''); });
   $('#menuBtn').addEventListener('click', openMenu);
+  $('#syncLine').addEventListener('click', function () {
+    if (sync.url && (syncState === 'error' || syncState === 'offline')) runSync();
+    openShared();
+  });
+
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();
+    installEvent = e;
+    $('#installBtn').hidden = false;
+  });
+  window.addEventListener('appinstalled', function () { $('#installBtn').hidden = true; installEvent = null; });
+  $('#installBtn').addEventListener('click', function () {
+    if (!installEvent) return;
+    installEvent.prompt();
+    installEvent.userChoice.then(function () { installEvent = null; $('#installBtn').hidden = true; }, function () {});
+  });
 
   /* ---------- start ---------- */
   items = load();
+  loadSync();
+  if (sync.url) syncState = navigator.onLine === false ? 'offline' : 'busy';
   render();
 
-  var installed = !!document.querySelector('link[rel="manifest"]');
+  function joinFromLink() {
+    var h = location.hash;
+    if (h.indexOf('#join=') !== 0) return null;
+    var u = '';
+    try { u = decodeURIComponent(h.slice(6)); } catch (e) {}
+    try { history.replaceState(null, '', location.pathname + location.search); } catch (e) {}
+    return validUrl(u) ? u.replace(/\/$/, '') : '';
+  }
+  function handleJoin() {
+    var join = IS_APP ? joinFromLink() : null;
+    if (join === '') {
+      showToast('That invite link is incomplete. Ask for it again.', null);
+      runSync();
+    } else if (join && join !== sync.url) {
+      closeSheet();
+      setSyncState('busy');
+      connect(join).then(function (r) {
+        showToast(r.started ? 'The shared list is set up.' : 'You’re on the shared list.', null);
+      }, function () {
+        setSyncState(sync.url ? 'error' : 'off');
+        openShared('Couldn’t reach the shared list from that invite link. Check your connection, then open the link again.');
+      });
+    } else {
+      runSync();
+    }
+  }
+  handleJoin();
+  // An invite link opened while the app is already showing arrives as a hash change, not a new page.
+  window.addEventListener('hashchange', function () { if (location.hash.indexOf('#join=') === 0) handleJoin(); });
+
+  if (IS_APP) {
+    document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') runSync(); });
+    window.addEventListener('online', function () { runSync(); });
+    window.addEventListener('offline', function () { if (sync.url) setSyncState('offline'); });
+    setInterval(function () { if (document.visibilityState === 'visible') runSync(); }, 45000);
+  }
+
   var secure = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
-  if (installed && secure && 'serviceWorker' in navigator) {
+  if (IS_APP && secure && 'serviceWorker' in navigator) {
     window.addEventListener('load', function () { navigator.serviceWorker.register('./sw.js').catch(function () {}); });
   }
-  if (installed) {
+  if (IS_APP) {
     try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(function () {}); } catch (e) {}
   }
 
-  window.__pink = { parseList: parseList, get items() { return items; } };
+  window.__pink = {
+    parseList: parseList,
+    get items() { return items; },
+    get pending() { return pending; },
+    get state() { return syncState; },
+    sync: runSync
+  };
 })();
