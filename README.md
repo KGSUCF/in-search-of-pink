@@ -62,4 +62,4 @@ On the other phone, tap the invite link so it opens in **Chrome** (if it opens i
 
 ## Updating the app
 
-After changing anything in `src/`, raise the number in `pink-v3` at the top of `src/sw.js`, then run `python3 src/build.py`. Phones pick up the new version the next time the app opens. Saved lists are not affected.
+After changing anything in `src/`, raise the number in `pink-v4` at the top of `src/sw.js`, then run `python3 src/build.py`. Phones pick up the new version the next time the app opens. Saved lists are not affected.

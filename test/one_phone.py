@@ -22,7 +22,7 @@ with sync_playwright() as p:
     rows = page.locator(".row")
     check("25 restaurants pre-loaded", rows.count() == 25)
     counts = {k: page.locator(f'[data-n="{k}"]').inner_text() for k in ["all", "pink", "no", "unknown"]}
-    check(f"counts {counts}", counts == {"all": "25", "pink": "11", "no": "11", "unknown": "3"})
+    check(f"counts {counts}", counts == {"all": "25", "pink": "11", "no": "10", "unknown": "4"})
     page.screenshot(path=OUT + "s1_home_light.png")
 
     # search
@@ -75,7 +75,7 @@ with sync_playwright() as p:
     page.click("#delBtn"); page.wait_for_timeout(400)
     page.screenshot(path=OUT + "s5_delete_confirm.png")
     page.click("#delYes")
-    check("Kaluz removed", page.locator(".row", has_text="Kaluz").count() == 0 and page.inner_text('[data-n="unknown"]') == "2")
+    check("Kaluz removed", page.locator(".row", has_text="Kaluz").count() == 0 and page.inner_text('[data-n="unknown"]') == "3")
 
     # filters
     page.click('.chip[data-f="pink"]')

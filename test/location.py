@@ -63,7 +63,7 @@ with sync_playwright() as p:
     s = server()
     check("sheet found Tap 42 from its address", s["Tap 42"]["geoState"] == "ok")
     check("Las Vegas has no address (many branches)", s["Las Vegas"]["geoState"] == "none")
-    check("phone got the map spots", A.evaluate("window.__pink.items.filter(i => i.geo).length") >= 24)
+    check("phone got the map spots", A.evaluate("window.__pink.items.filter(i => i.geo).length") == 24)
 
     # --- at Tap 42
     locate(A, ctxA, TAP42, 12)

@@ -5,6 +5,7 @@
   var SYNC_KEY = 'inSearchOfPink.sync';
   var PEND_KEY = 'inSearchOfPink.pending';
   var ADDR_KEY = 'inSearchOfPink.addresses';
+  var UPD_KEY = 'inSearchOfPink.updates';
 
   // name, status, street address (Fort Lauderdale unless it says otherwise), other names it goes by
   var SEED = [
@@ -13,7 +14,6 @@
     ['Tap 42', 'pink', '1411 S Andrews Ave'],
     ['YOT', 'no', '2015 SW 20th St', ['YOT Bar & Kitchen']],
     ['Louie Bossi', 'no', '1032 E Las Olas Blvd', ['Louie Bossi’s']],
-    ['Big City', 'no', '609 E Las Olas Blvd', ['Big City Tavern']],
     ['Moxies', 'pink', '201 E Las Olas Blvd'],
     ['El Camino', 'no', '817 E Las Olas Blvd'],
     ['YOLO', 'pink', '333 E Las Olas Blvd'],
@@ -32,7 +32,13 @@
     ['Seasons 52', 'no', '2428 E Sunrise Blvd'],
     ['Lobster Bar', 'pink', '450 E Las Olas Blvd', ['Lobster Bar Sea Grille']],
     ['Kaluz', 'unknown', '3300 E Commercial Blvd'],
-    ['Las Vegas', 'no', ''] // many branches: learns its spot when you save it
+    ['Las Vegas', 'no', ''], // many branches: learns its spot when you save it
+    ['Sweetwaters', 'unknown', '58 E Las Olas Blvd']
+  ];
+  // Changes to the built-in list after people started using it. Each is applied once on every
+  // phone, and once to each shared list, so lists made from the older built-in list catch up.
+  var UPDATES = [
+    { id: '2026-10-19', remove: ['Big City', 'Big City Tavern'], add: [['Sweetwaters', 'unknown', '58 E Las Olas Blvd']] }
   ];
   var BADGE = { pink: 'Pink', no: 'No', unknown: '?' };
   var SAY = { pink: 'Pink', no: 'No pink', unknown: 'Not checked' };
@@ -152,7 +158,10 @@
       return copyItem({ id: uid(), name: r[0], status: r[1], updated: null, address: r[2] });
     });
     save();
-    try { localStorage.setItem(ADDR_KEY, JSON.stringify(['local'])); } catch (e) {}
+    try {
+      localStorage.setItem(ADDR_KEY, JSON.stringify(['local']));
+      localStorage.setItem(UPD_KEY, JSON.stringify(UPDATES.map(function (u) { return 'local ' + u.id; })));
+    } catch (e) {}
     return items;
   }
   function save() {
@@ -186,6 +195,27 @@
     done.push(ctx);
     try { localStorage.setItem(ADDR_KEY, JSON.stringify(done)); } catch (e) {}
     save();
+    if (sync.url && ops.length) setTimeout(runSync, 0);
+  }
+
+  function applyUpdates(ctx) {
+    var done = readJSON(UPD_KEY) || [];
+    var todo = UPDATES.filter(function (u) { return done.indexOf(ctx + ' ' + u.id) < 0; });
+    if (!todo.length) return;
+    var before = JSON.parse(snap());
+    todo.forEach(function (u) {
+      var gone = u.remove.map(squash);
+      items = items.filter(function (it) { return gone.indexOf(squash(it.name)) < 0; });
+      u.add.forEach(function (r) {
+        if (!findByName(r[0])) items.push(copyItem({ id: uid(), name: r[0], status: r[1], updated: null, address: r[2] }));
+      });
+      done.push(ctx + ' ' + u.id);
+    });
+    var ops = diffOps(before, items);
+    if (sync.url && ops.length) pending = pending.concat(ops);
+    try { localStorage.setItem(UPD_KEY, JSON.stringify(done)); } catch (e) {}
+    save();
+    render();
     if (sync.url && ops.length) setTimeout(runSync, 0);
   }
 
@@ -369,6 +399,7 @@
       setSyncState('ok');
       render();
       fillAddresses(url);
+      applyUpdates(url);
     }).catch(function () {
       if (sync.url !== url) return;
       setSyncState(navigator.onLine === false ? 'offline' : 'error');
@@ -399,6 +430,7 @@
         setSyncState('ok');
         render();
         fillAddresses(url);
+        applyUpdates(url);
         return { started: !server.length, added: server.length ? ops.length : 0, total: items.length };
       });
     });
@@ -1163,7 +1195,7 @@
   items = load();
   loadSync();
   if (sync.url) syncState = navigator.onLine === false ? 'offline' : 'busy';
-  else fillAddresses('local');
+  else { fillAddresses('local'); applyUpdates('local'); }
   render();
   initHere();
 
