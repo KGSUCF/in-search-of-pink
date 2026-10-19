@@ -122,6 +122,48 @@ button { cursor: pointer; }
 }
 @keyframes pulse { from { opacity: 1; } to { opacity: 0.3; } }
 
+/* Where are we? */
+.here {
+  margin-top: 14px; padding: 14px 16px 10px; border-radius: 18px;
+  background: var(--surface); border: 1px solid var(--line);
+  display: grid; gap: 8px;
+}
+.here[data-kind="pink"] { background: var(--pink); border-color: var(--pink); color: var(--on-pink); }
+.here[data-kind="no"] { background: var(--no-soft); border-color: var(--no-soft); }
+.here[data-kind="unknown"] { border: 2px dashed var(--unk-b); }
+.here[data-kind="quiet"] { background: transparent; border-style: dashed; padding-block: 8px 4px; }
+.here[data-kind="locating"] { padding-bottom: 14px; }
+.here-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 28px; }
+.eyebrow {
+  display: inline-flex; align-items: center; gap: 6px; min-width: 0;
+  font-size: 13px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted);
+}
+.pin { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linejoin: round; }
+.here[data-kind="locating"] .pin { color: var(--pink); animation: bob 0.8s ease-in-out infinite alternate; }
+.here[data-kind="pink"] .eyebrow, .here[data-kind="pink"] .here-link, .here[data-kind="pink"] .here-text { color: var(--on-pink); }
+.here-name { margin: 0; font-size: 30px; font-weight: 700; line-height: 1.1; overflow-wrap: anywhere; text-wrap: balance; }
+.here-title { margin: 0; font-size: 18px; font-weight: 700; line-height: 1.3; text-wrap: balance; }
+.here-text { margin: 0; font-size: 15px; color: var(--muted); }
+.here-text b { color: var(--ink); overflow-wrap: anywhere; }
+.verdict { display: flex; align-items: center; gap: 12px; font-family: var(--f-display); font-size: 23px; line-height: 1.15; }
+.verdict .packet { height: 34px; min-width: 70px; font-size: 14px; }
+.here[data-kind="pink"] .packet.pink { background: var(--on-pink); color: var(--pink); }
+.here[data-kind="no"] .packet.no { background: var(--surface); }
+.here-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 18px; }
+.here-link {
+  border: 0; background: transparent; padding: 6px 0; min-height: 40px;
+  color: var(--pink-ink); font-weight: 700; font-size: 15px; text-decoration: underline; text-underline-offset: 3px;
+}
+.here-top .here-link { min-height: 32px; padding: 0; flex: none; }
+.here .btn .pin { width: 20px; height: 20px; }
+.btn.small { height: 42px; padding: 0 16px; font-size: 15px; }
+.quick { display: flex; gap: 10px; }
+.quick .btn { flex: 1; padding: 0 12px; }
+.here-list { list-style: none; margin: 0; padding: 0; }
+.here-list li + li { border-top: 1px solid var(--line); }
+.here-list .row { min-height: 52px; padding: 8px 0; }
+@keyframes bob { from { transform: translateY(0); } to { transform: translateY(-3px); } }
+
 /* Pinned search bar */
 .bar {
   position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
@@ -235,6 +277,12 @@ a.btn { text-decoration: none; }
   width: 100%; border: 2px solid var(--line); border-radius: 12px; background: var(--bg);
   padding: 12px 14px; font-size: 19px;
 }
+.opt { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.check { display: flex; align-items: flex-start; gap: 12px; font-size: 16px; line-height: 1.4; cursor: pointer; }
+.check input { width: 22px; height: 22px; margin: 1px 0 0; flex: none; accent-color: var(--pink); }
+.where { display: grid; gap: 10px; border-top: 1px solid var(--line); padding-top: 14px; }
+.spot-cta { display: grid; gap: 6px; justify-items: start; }
+.spot-cta .pin { width: 20px; height: 20px; }
 .field textarea.short { min-height: 0; font-size: 14px; word-break: break-all; }
 .field textarea { font-size: 15px; line-height: 1.5; resize: vertical; min-height: 180px; font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; }
 .field input:focus, .field textarea:focus { outline: none; border-color: var(--pink); }
@@ -285,7 +333,7 @@ fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
 .toast button { flex: none; border: 0; background: transparent; color: var(--bg); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; padding: 8px; }
 
 @keyframes rise { from { transform: translateY(32px); } to { transform: none; } }
-@media (prefers-reduced-motion: reduce) { .sheet, .toast, .sync-line .dot { animation: none !important; } }
+@media (prefers-reduced-motion: reduce) { .sheet, .toast, .sync-line .dot, .here .pin { animation: none !important; } }
 @media (min-width: 600px) { .brand span { font-size: 60px; } }
 
 </style>
@@ -303,6 +351,7 @@ fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
     <button id="syncLine" class="sync-line" type="button" data-state="off" hidden><span class="dot" aria-hidden="true"></span><span id="syncText"></span></button>
     <button id="installBtn" class="install-pill" type="button" hidden>Install app</button>
   </div>
+  <section id="here" class="here" aria-live="polite" aria-label="Where you are" hidden></section>
 </div>
 
 <div class="bar">
@@ -343,14 +392,35 @@ fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
   var KEY = 'inSearchOfPink.v1';
   var SYNC_KEY = 'inSearchOfPink.sync';
   var PEND_KEY = 'inSearchOfPink.pending';
+  var ADDR_KEY = 'inSearchOfPink.addresses';
+
+  // name, status, street address (Fort Lauderdale unless it says otherwise), other names it goes by
   var SEED = [
-    ['Boathouse', 'no'], ['Doc B’s', 'pink'], ['Tap 42', 'pink'], ['YOT', 'no'],
-    ['Louie Bossi', 'no'], ['Big City', 'no'], ['Moxies', 'pink'], ['El Camino', 'no'],
-    ['YOLO', 'pink'], ['Foxy Brown', 'pink'], ['60 Vines', 'no'], ['Chimney House', 'no'],
-    ['Mykonos', 'no'], ['Worthwyld', 'unknown'], ['American Social', 'unknown'],
-    ['Blue Moon Fish', 'pink'], ['S3', 'no'], ['Fogo', 'pink'], ['Cheesecake Factory', 'pink'],
-    ['Del Frisco’s', 'pink'], ['Carrabba’s', 'pink'], ['Seasons 52', 'no'],
-    ['Lobster Bar', 'pink'], ['Kaluz', 'unknown'], ['Las Vegas', 'no']
+    ['Boathouse', 'no', '620 SE 4th St', ['Boathouse at the Riverside']],
+    ['Doc B’s', 'pink', '452 N Federal Hwy'],
+    ['Tap 42', 'pink', '1411 S Andrews Ave'],
+    ['YOT', 'no', '2015 SW 20th St', ['YOT Bar & Kitchen']],
+    ['Louie Bossi', 'no', '1032 E Las Olas Blvd', ['Louie Bossi’s']],
+    ['Big City', 'no', '609 E Las Olas Blvd', ['Big City Tavern']],
+    ['Moxies', 'pink', '201 E Las Olas Blvd'],
+    ['El Camino', 'no', '817 E Las Olas Blvd'],
+    ['YOLO', 'pink', '333 E Las Olas Blvd'],
+    ['Foxy Brown', 'pink', '476 N Federal Hwy'],
+    ['60 Vines', 'no', '800 E Las Olas Blvd', ['Sixty Vines']],
+    ['Chimney House', 'no', '701 W Las Olas Blvd', ['The Chimney House']],
+    ['Mykonos', 'no', '305 S Andrews Ave'],
+    ['Worthwyld', 'unknown', '350 E Las Olas Blvd'],
+    ['American Social', 'unknown', '811 E Las Olas Blvd'],
+    ['Blue Moon Fish', 'pink', '4405 W Tradewinds Ave, Fort Lauderdale, FL 33308', ['Blue Moon Fish Co']],
+    ['S3', 'no', '505 N Fort Lauderdale Beach Blvd'],
+    ['Fogo', 'pink', '201 E Las Olas Blvd', ['Fogo de Chao']],
+    ['Cheesecake Factory', 'pink', '600 E Las Olas Blvd', ['The Cheesecake Factory']],
+    ['Del Frisco’s', 'pink', '501 E Las Olas Blvd', ['Del Frisco’s Grille']],
+    ['Carrabba’s', 'pink', '1430 SE 17th St', ['Carrabba’s Italian Grill']],
+    ['Seasons 52', 'no', '2428 E Sunrise Blvd'],
+    ['Lobster Bar', 'pink', '450 E Las Olas Blvd', ['Lobster Bar Sea Grille']],
+    ['Kaluz', 'unknown', '3300 E Commercial Blvd'],
+    ['Las Vegas', 'no', ''] // many branches: learns its spot when you save it
   ];
   var BADGE = { pink: 'Pink', no: 'No', unknown: '?' };
   var SAY = { pink: 'Pink', no: 'No pink', unknown: 'Not checked' };
@@ -359,6 +429,7 @@ fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
     ['no', 'No pink', 'Only other sweeteners'],
     ['unknown', 'Not checked yet', 'Nobody has looked']
   ];
+  var PIN = '<svg class="pin" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.4"/></svg>';
 
   var items = [];
   var filter = 'all';
@@ -378,10 +449,14 @@ fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
   var syncing = null, syncAgain = false;
   var installEvent = null;
 
+  // Where are we?
+  var here = { state: 'off', best: null, watch: null, timer: 0, started: 0, pick: null, granted: false, fromAdd: false };
+  var lastFix = null;
+
   function $(s, root) { return (root || document).querySelector(s); }
   function $$(s, root) { return Array.prototype.slice.call((root || document).querySelectorAll(s)); }
   var qEl = $('#q'), listEl = $('#list'), emptyEl = $('#empty'), sheetEl = $('#sheet'),
-      scrimEl = $('#scrim'), toastEl = $('#toast');
+      scrimEl = $('#scrim'), toastEl = $('#toast'), hereEl = $('#here');
 
   /* ---------- helpers ---------- */
   function uid() {
@@ -400,6 +475,7 @@ fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
     });
   }
   function tidy(s) { return String(s || '').replace(/\s+/g, ' ').trim().replace(/'/g, '’'); }
+  function tidyAddr(s) { return String(s || '').replace(/\s+/g, ' ').trim().slice(0, 200); }
   function todayISO() {
     var d = new Date();
     return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
@@ -410,6 +486,8 @@ fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
     return new Date(p[0], p[1] - 1, p[2]).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   }
   function clock(ms) { return new Date(ms).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }); }
+  function round5(n) { return Math.round(n * 1e5) / 1e5; }
+  function plural(n, one, many) { return n + ' ' + (n === 1 ? one : (many || one + 's')); }
   function byId(id) { for (var i = 0; i < items.length; i++) if (items[i].id === id) return items[i]; return null; }
   function findByName(name, exceptId) {
     var k = squash(name);
@@ -421,7 +499,30 @@ fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
   }
   function sorted(arr) { return arr.slice().sort(function (a, b) { return collator.compare(a.name, b.name); }); }
   function snap() { return JSON.stringify(items); }
-  function copyItem(x) { return { id: x.id, name: x.name, status: x.status, updated: x.updated || null }; }
+  function cleanSpots(v) {
+    return (Array.isArray(v) ? v : []).filter(function (p) {
+      return Array.isArray(p) && isFinite(p[0]) && isFinite(p[1]) && Math.abs(p[0]) <= 90 && Math.abs(p[1]) <= 180;
+    }).map(function (p) { return [Number(p[0]), Number(p[1])]; }).slice(-8);
+  }
+  function copyItem(x) {
+    var geo = Array.isArray(x.geo) && isFinite(x.geo[0]) && isFinite(x.geo[1]) ? [Number(x.geo[0]), Number(x.geo[1])] : null;
+    var address = tidyAddr(x.address);
+    return {
+      id: x.id, name: x.name, status: x.status, updated: x.updated || null,
+      address: address,
+      geo: geo,
+      geoState: geo ? 'ok' : (address ? (x.geoState === 'notfound' ? 'notfound' : 'pending') : 'none'),
+      spots: cleanSpots(x.spots)
+    };
+  }
+  function knownAddress(name) {
+    var k = squash(name);
+    for (var i = 0; i < SEED.length; i++) {
+      var names = [SEED[i][0]].concat(SEED[i][3] || []);
+      for (var j = 0; j < names.length; j++) if (squash(names[j]) === k) return SEED[i][2] || '';
+    }
+    return '';
+  }
 
   /* ---------- storage ---------- */
   function valid(it) {
@@ -435,8 +536,11 @@ fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
     if (d && Array.isArray(d.items)) {
       return d.items.filter(valid).map(function (it) { var c = copyItem(it); c.id = c.id || uid(); return c; });
     }
-    items = SEED.map(function (r) { return { id: uid(), name: r[0], status: r[1], updated: null }; });
+    items = SEED.map(function (r) {
+      return copyItem({ id: uid(), name: r[0], status: r[1], updated: null, address: r[2] });
+    });
     save();
+    try { localStorage.setItem(ADDR_KEY, JSON.stringify(['local'])); } catch (e) {}
     return items;
   }
   function save() {
@@ -454,6 +558,24 @@ fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
     if (s && validUrl(s.url)) sync = { url: s.url, sheetUrl: s.sheetUrl || '', last: s.last || 0 };
     pending = (sync.url && Array.isArray(p)) ? p : [];
   }
+  // Lists saved before addresses existed get the known addresses once (per phone, and once per shared list).
+  function fillAddresses(ctx) {
+    var done = readJSON(ADDR_KEY) || [];
+    if (done.indexOf(ctx) > -1) return;
+    var before = JSON.parse(snap());
+    items.forEach(function (it) {
+      if (!it.address) {
+        var a = knownAddress(it.name);
+        if (a) { it.address = a; it.geo = null; it.geoState = 'pending'; }
+      }
+    });
+    var ops = diffOps(before, items);
+    if (sync.url && ops.length) pending = pending.concat(ops);
+    done.push(ctx);
+    try { localStorage.setItem(ADDR_KEY, JSON.stringify(done)); } catch (e) {}
+    save();
+    if (sync.url && ops.length) setTimeout(runSync, 0);
+  }
 
   /* ---------- list ---------- */
   function packet(s) { return '<span class="packet ' + s + '" aria-hidden="true">' + BADGE[s] + '</span>'; }
@@ -468,6 +590,11 @@ fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
     var n = norm(it.name);
     return n.indexOf(nq) > -1 || n.replace(/ /g, '').indexOf(sq) > -1;
   }
+  function rowHtml(it, raw, act) {
+    return '<button class="row" type="button" data-id="' + esc(it.id) + '"' + (act ? ' data-here="' + act + '"' : '') +
+      ' aria-label="' + esc(it.name) + ': ' + SAY[it.status] + '"><span class="name">' + highlight(it.name, raw || '') +
+      '</span>' + packet(it.status) + '</button>';
+  }
 
   function render() {
     var counts = { all: items.length, pink: 0, no: 0, unknown: 0 };
@@ -481,13 +608,10 @@ fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
     var shown = sorted(items.filter(function (it) {
       return (filter === 'all' || it.status === filter) && matches(it, nq, sq);
     }));
-    listEl.innerHTML = shown.map(function (it) {
-      return '<li><button class="row" type="button" data-id="' + esc(it.id) + '" aria-label="' +
-        esc(it.name) + ': ' + SAY[it.status] + '"><span class="name">' + highlight(it.name, raw) +
-        '</span>' + packet(it.status) + '</button></li>';
-    }).join('');
+    listEl.innerHTML = shown.map(function (it) { return '<li>' + rowHtml(it, raw) + '</li>'; }).join('');
 
     renderSyncLine();
+    renderHere();
     if (shown.length) { emptyEl.hidden = true; emptyEl.innerHTML = ''; return; }
     emptyEl.hidden = false;
     if (raw) {
@@ -505,14 +629,24 @@ fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
   }
 
   /* ---------- changes: diff into operations the shared list understands ---------- */
-  function setOp(it) { return { op: 'set', id: it.id, name: it.name, status: it.status, updated: it.updated || null }; }
+  function sameSpots(a, b) { return JSON.stringify(a || []) === JSON.stringify(b || []); }
+  function setOp(x, prev) {
+    var op = { op: 'set', id: x.id, name: x.name, status: x.status, updated: x.updated || null };
+    if (prev ? (prev.address || '') !== (x.address || '') : !!x.address) op.address = x.address || '';
+    if (prev ? !sameSpots(prev.spots, x.spots) : (x.spots && x.spots.length)) op.spots = x.spots || [];
+    return op;
+  }
+  function differs(o, x) {
+    return o.name !== x.name || o.status !== x.status || (o.address || '') !== (x.address || '') || !sameSpots(o.spots, x.spots);
+  }
   function diffOps(fromArr, toArr) {
     var from = {}, to = {}, ops = [];
     fromArr.forEach(function (x) { from[x.id] = x; });
     toArr.forEach(function (x) { to[x.id] = x; });
     toArr.forEach(function (x) {
       var o = from[x.id];
-      if (!o || o.name !== x.name || o.status !== x.status) ops.push(setOp(x));
+      if (!o) ops.push(setOp(x, null));
+      else if (differs(o, x)) ops.push(setOp(x, o));
     });
     fromArr.forEach(function (x) { if (!to[x.id]) ops.push({ op: 'delete', id: x.id }); });
     return ops;
@@ -527,10 +661,16 @@ fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
       var it = null, sameId = false, i;
       for (i = 0; i < list.length && !it; i++) if (list[i].id === op.id) { it = list[i]; sameId = true; }
       for (i = 0; i < list.length && !it; i++) if (squash(list[i].name) === squash(op.name)) it = list[i];
-      if (!it) { it = { id: op.id, name: op.name, updated: null }; list.push(it); }
+      if (!it) { it = copyItem({ id: op.id, name: op.name, status: op.status }); list.push(it); }
       else if (sameId) it.name = op.name;
       it.status = op.status;
       if (op.updated) it.updated = op.updated;
+      if (Object.prototype.hasOwnProperty.call(op, 'address') && tidyAddr(op.address) !== it.address) {
+        it.address = tidyAddr(op.address);
+        it.geo = null;
+        it.geoState = it.address ? 'pending' : 'none';
+      }
+      if (Array.isArray(op.spots)) it.spots = cleanSpots(op.spots);
     });
     return list;
   }
@@ -588,7 +728,7 @@ fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
     if (window.AbortController) {
       var ctrl = new AbortController();
       opts.signal = ctrl.signal;
-      timer = setTimeout(function () { ctrl.abort(); }, 25000);
+      timer = setTimeout(function () { ctrl.abort(); }, 30000);
     }
     return fetch(target, opts).then(function (r) {
       if (!r.ok) throw new Error('status ' + r.status);
@@ -616,6 +756,7 @@ fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
       save();
       setSyncState('ok');
       render();
+      fillAddresses(url);
     }).catch(function () {
       if (sync.url !== url) return;
       setSyncState(navigator.onLine === false ? 'offline' : 'error');
@@ -631,11 +772,13 @@ fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
     url = String(url).trim().replace(/\/$/, '');
     return api(url, null).then(function (d) {
       var server = d.items.filter(valid);
-      var ops = server.length
+      var mine = server.length
         ? items.filter(function (it) {
-            return it.updated && !server.some(function (s) { return squash(s.name) === squash(it.name); });
-          }).map(setOp)
-        : items.map(setOp);
+            return (it.updated || (it.spots && it.spots.length)) &&
+              !server.some(function (s) { return squash(s.name) === squash(it.name); });
+          })
+        : items;
+      var ops = mine.map(function (it) { return setOp(it, null); });
       return (ops.length ? api(url, ops) : Promise.resolve(d)).then(function (d2) {
         sync = { url: url, sheetUrl: d2.sheetUrl || '', last: Date.now() };
         pending = [];
@@ -643,6 +786,7 @@ fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
         save();
         setSyncState('ok');
         render();
+        fillAddresses(url);
         return { started: !server.length, added: server.length ? ops.length : 0, total: items.length };
       });
     });
@@ -659,7 +803,7 @@ fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
   }
   function setSyncState(s) { syncState = s; renderSyncLine(); }
   function syncSummary() {
-    var n = pending.length, waiting = n ? n + ' change' + (n === 1 ? '' : 's') + ' will sync when it connects' : '';
+    var n = pending.length, waiting = n ? plural(n, 'change') + ' will sync when it connects' : '';
     if (syncState === 'busy') return 'Syncing…';
     if (syncState === 'ok') return 'Shared list · up to date ' + clock(sync.last);
     if (syncState === 'offline') return 'No connection · ' + (waiting || 'showing the last copy');
@@ -667,11 +811,11 @@ fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
     return 'On this phone only · Share with another phone';
   }
   function sheetStateText() {
-    var n = pending.length, waiting = n ? ' ' + n + ' change' + (n === 1 ? '' : 's') + ' will sync when it connects.' : '';
-    if (syncState === 'busy') return 'Syncing\u2026';
+    var n = pending.length, waiting = n ? ' ' + plural(n, 'change') + ' will sync when it connects.' : '';
+    if (syncState === 'busy') return 'Syncing…';
     if (syncState === 'ok') return 'Up to date as of ' + clock(sync.last) + '.';
     if (syncState === 'offline') return 'No connection right now.' + waiting;
-    return 'Can\u2019t reach the Google Sheet right now.' + waiting;
+    return 'Can’t reach the Google Sheet right now.' + waiting;
   }
   function renderSyncLine() {
     var line = $('#syncLine');
@@ -680,6 +824,221 @@ fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
     line.hidden = false;
     line.setAttribute('data-state', syncState);
     $('#syncText').textContent = syncSummary();
+  }
+
+  /* ---------- where are we? ---------- */
+  function distM(a, b) {
+    var R = 6371000, r = Math.PI / 180;
+    var dLat = (b.lat - a.lat) * r, dLng = (b.lng - a.lng) * r;
+    var s = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos(a.lat * r) * Math.cos(b.lat * r) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    return 2 * R * Math.asin(Math.min(1, Math.sqrt(s)));
+  }
+  // A spot saved on a phone is exact; a spot worked out from an address is an estimate.
+  // An address spot near a saved one is the same branch, so the saved one replaces it.
+  function pointsOf(it) {
+    var pts = (it.spots || []).map(function (p) { return { lat: p[0], lng: p[1], saved: true }; });
+    if (it.geo) {
+      var g = { lat: it.geo[0], lng: it.geo[1], saved: false };
+      if (!pts.some(function (p) { return distM(p, g) < 300; })) pts.push(g);
+    }
+    return pts;
+  }
+  function anyPlaces() { return items.some(function (it) { return pointsOf(it).length > 0; }); }
+  function guess(fix) {
+    var acc = Math.max(5, fix.acc), reach = Math.min(acc, 200), cands = [];
+    items.forEach(function (it) {
+      var best = null;
+      pointsOf(it).forEach(function (p) {
+        var d = distM(fix, p);
+        if (d > (p.saved ? 35 : 60) + reach) return;
+        var score = d + (p.saved ? 0 : 20);
+        if (!best || score < best.score) best = { d: d, score: score };
+      });
+      if (best) cands.push({ it: it, d: best.d, score: best.score });
+    });
+    cands.sort(function (a, b) { return a.score - b.score; });
+    if (acc > 250) return { kind: 'fuzzy', cands: cands.slice(0, 4), acc: acc };
+    if (!cands.length) return { kind: anyPlaces() ? 'none' : 'noplaces' };
+    if (cands.length === 1 || cands[1].score - cands[0].score > Math.max(25, acc * 0.75)) {
+      return { kind: 'match', it: cands[0].it, sure: cands[0].d <= 50 && acc <= 50 };
+    }
+    return { kind: 'choose', cands: cands.slice(0, 4) };
+  }
+  function freshFix() { return lastFix && Date.now() - lastFix.t < 10 * 60000 && lastFix.acc <= 75 ? lastFix : null; }
+  function canSaveSpot(it) {
+    var f = freshFix();
+    if (!f || !it) return false;
+    return !(it.spots || []).some(function (p) { return distM(f, { lat: p[0], lng: p[1] }) <= 30; });
+  }
+  function spotHere() { var f = freshFix(); return f ? [round5(f.lat), round5(f.lng)] : null; }
+
+  function startLocate() {
+    if (!IS_APP) return;
+    if (!navigator.geolocation) { setHere('off'); return; }
+    stopWatch();
+    here.started = Date.now();
+    here.best = null;
+    here.pick = null;
+    setHere('locating');
+    try {
+      here.watch = navigator.geolocation.watchPosition(onPos, onPosErr, { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 });
+    } catch (e) { setHere('error'); return; }
+    here.timer = setTimeout(finishLocate, 12000);
+  }
+  function stopWatch() {
+    if (here.watch !== null) { try { navigator.geolocation.clearWatch(here.watch); } catch (e) {} here.watch = null; }
+    clearTimeout(here.timer);
+  }
+  function onPos(p) {
+    here.granted = true;
+    var c = p.coords, f = { lat: c.latitude, lng: c.longitude, acc: c.accuracy || 9999, t: Date.now() };
+    if (!here.best || f.acc <= here.best.acc) here.best = f;
+    else here.best.t = f.t;
+    lastFix = here.best;
+    if (here.best.acc <= 20) stopWatch();
+    if (here.state === 'locating' && (here.best.acc <= 100 || Date.now() - here.started > 5000 || here.watch === null)) here.state = 'located';
+    renderHere();
+  }
+  function onPosErr(e) {
+    if (e && e.code === 1) { stopWatch(); setHere('denied'); }
+  }
+  function finishLocate() {
+    stopWatch();
+    if (here.state === 'locating') setHere(here.best ? 'located' : 'error');
+  }
+  function setHere(s) { here.state = s; renderHere(); }
+
+  function hereTop(label, link) {
+    return '<div class="here-top"><span class="eyebrow">' + PIN + label + '</span>' + (link || '') + '</div>';
+  }
+  function hereLink(act, text, id) {
+    return '<button type="button" class="here-link" data-here="' + act + '"' + (id ? ' data-id="' + esc(id) + '"' : '') + '>' + text + '</button>';
+  }
+  function matchHtml(it, how) {
+    var verdict = { pink: 'Pink packets here', no: 'No pink here. Bring your own.', unknown: 'Nobody has checked yet' }[it.status];
+    var h = hereTop(how === 'likely' ? 'Looks like you’re at' : 'You’re at', hereLink('dismiss', 'Not here?')) +
+      '<p class="here-name">' + esc(it.name) + '</p>' +
+      '<div class="verdict">' + packet(it.status) + '<span>' + verdict + '</span></div>';
+    if (it.status === 'unknown') {
+      h += '<p class="here-text">Take a look in the sugar caddy:</p><div class="quick">' +
+        '<button type="button" class="btn" data-here="mark" data-status="pink" data-id="' + esc(it.id) + '">Pink packets</button>' +
+        '<button type="button" class="btn quiet" data-here="mark" data-status="no" data-id="' + esc(it.id) + '">No pink</button></div>';
+    }
+    var acts = hereLink('edit', it.status === 'unknown' ? 'More options' : 'Changed? Update it', it.id);
+    if (how !== 'sure' && canSaveSpot(it)) acts += hereLink('savespot', 'Save this spot for next time', it.id);
+    return h + '<div class="here-actions">' + acts + '</div>';
+  }
+  function candList(cands) {
+    return '<ul class="here-list">' + cands.map(function (c) { return '<li>' + rowHtml(c.it, '', 'pick') + '</li>'; }).join('') + '</ul>';
+  }
+  function renderHere() {
+    if (!IS_APP || here.state === 'off') { hereEl.hidden = true; hereEl.innerHTML = ''; return; }
+    var s = here.state, kind = 'note', h = '';
+    if (s === 'ask') {
+      h = hereTop('Where are you eating?') +
+        '<p class="here-text">Let the app find the restaurant you’re at. Your location stays on this phone.</p>' +
+        '<div class="here-actions"><button type="button" class="btn" data-here="allow">' + PIN + 'Use my location</button></div>';
+    } else if (s === 'locating') {
+      kind = 'locating';
+      h = hereTop('Finding where you are…');
+    } else if (s === 'denied') {
+      h = hereTop('Location is off') +
+        '<p class="here-title">This app isn’t allowed to use your location.</p>' +
+        '<p class="here-text">To turn it on, open <b>' + esc(location.host + location.pathname) + '</b> in Chrome, tap the icon to the left of the address, and allow Location. Until then, search below.</p>';
+    } else if (s === 'error') {
+      h = hereTop('No location') +
+        '<p class="here-title">Couldn’t get your location.</p>' +
+        '<p class="here-text">Check that Location is on in your phone’s quick settings. Or search below.</p>' +
+        '<div class="here-actions">' + hereLink('again', 'Try again') + '</div>';
+    } else if (s === 'dismissed') {
+      kind = 'quiet';
+      h = '<p class="here-text">Search for the restaurant below.</p><div class="here-actions">' +
+        hereLink('again', 'Find me again') + hereLink('add', 'Add the restaurant you’re at') + '</div>';
+    } else if (s === 'located' && here.best) {
+      var picked = here.pick && byId(here.pick);
+      var g = picked ? { kind: 'match', it: picked, how: 'picked' } : guess(here.best);
+      if (g.kind === 'match') {
+        kind = g.it.status;
+        h = matchHtml(g.it, g.how || (g.sure ? 'sure' : 'likely'));
+      } else if (g.kind === 'choose') {
+        h = hereTop('You’re near') + '<p class="here-title">Which one are you at?</p>' + candList(g.cands) +
+          '<div class="here-actions">' + hereLink('dismiss', 'None of these') + hereLink('again', 'Find me again') + '</div>';
+      } else if (g.kind === 'fuzzy') {
+        h = hereTop('Not sure where you are') +
+          '<p class="here-title">Your location is only accurate to about ' + Math.round(g.acc / 50) * 50 + ' m right now.</p>' +
+          (g.cands.length ? '<p class="here-text">You might be at one of these:</p>' + candList(g.cands)
+            : '<p class="here-text">That’s not close enough to tell which restaurant you’re in. Search below, or try again in a moment.</p>') +
+          '<div class="here-actions">' + hereLink('again', 'Try again') + '</div>';
+      } else if (g.kind === 'noplaces') {
+        h = hereTop('Can’t tell yet') +
+          '<p class="here-title">The app doesn’t know where your restaurants are yet.</p>' +
+          '<p class="here-text">' + (sync.url
+            ? 'It’s looking up their addresses through the shared list. Try again in a minute.'
+            : 'It looks up their addresses once the shared list is connected. You can also open a restaurant while you’re there and tap Save this spot.') +
+          ' For now, search below.</p><div class="here-actions">' + hereLink('again', 'Try again') + '</div>';
+      } else {
+        h = hereTop('Can\u2019t tell where you are') +
+          '<p class="here-title">No restaurant on your list is saved near here.</p>' +
+          '<p class="here-text">Search for it below. If it’s on the list, open it and tap Save this spot so the app knows it next time.</p>' +
+          '<div class="here-actions"><button type="button" class="btn small" data-here="add">Add the restaurant you’re at</button>' +
+          hereLink('again', 'Find me again') + '</div>';
+      }
+    } else {
+      hereEl.hidden = true;
+      return;
+    }
+    hereEl.setAttribute('data-kind', kind);
+    hereEl.innerHTML = h;
+    hereEl.hidden = false;
+  }
+  function saveSpot(id) {
+    var it = byId(id), spot = spotHere();
+    if (!it || !spot) return;
+    var before = snap();
+    it.spots = (it.spots || []).concat([spot]).slice(-8);
+    here.pick = null;
+    if (here.best && here.state !== 'locating') here.state = 'located';
+    closeSheet();
+    commit('Saved this spot for ' + it.name + '.', before);
+  }
+  function markStatus(id, status) {
+    var it = byId(id);
+    if (!it || it.status === status) return;
+    var before = snap();
+    it.status = status;
+    it.updated = todayISO();
+    commit(it.name + ' is now ' + SAY[status] + '.', before);
+  }
+  hereEl.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-here]');
+    if (!b) return;
+    var act = b.getAttribute('data-here'), id = b.getAttribute('data-id');
+    if (act === 'allow' || act === 'again') startLocate();
+    else if (act === 'dismiss') { stopWatch(); setHere('dismissed'); qEl.focus(); }
+    else if (act === 'pick') { here.pick = id; here.state = 'located'; renderHere(); }
+    else if (act === 'mark') markStatus(id, b.getAttribute('data-status'));
+    else if (act === 'edit') openEdit(id);
+    else if (act === 'savespot') saveSpot(id);
+    else if (act === 'add') openAdd('', { here: true });
+  });
+  function initHere() {
+    if (!IS_APP) return;
+    if (!navigator.geolocation) { setHere('off'); return; }
+    function decide(state) {
+      if (state === 'granted') startLocate();
+      else if (state === 'denied') setHere('denied');
+      else setHere('ask');
+    }
+    try {
+      navigator.permissions.query({ name: 'geolocation' }).then(function (st) {
+        decide(st.state);
+        st.onchange = function () {
+          if (st.state === 'granted' && (here.state === 'ask' || here.state === 'denied')) startLocate();
+          else if (st.state === 'denied') { stopWatch(); setHere('denied'); }
+        };
+      }, function () { decide('prompt'); });
+    } catch (e) { decide('prompt'); }
   }
 
   /* ---------- sheet ---------- */
@@ -723,18 +1082,24 @@ fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
   function gone() { closeSheet(); showToast('That restaurant was just removed on another phone.', null); }
 
   /* Add */
-  function openAdd(prefill) {
+  function openAdd(prefill, opts) {
+    opts = opts || {};
+    var canSpot = !!freshFix();
     openSheet(
       '<h2 id="sheetTitle" tabindex="-1">Add a restaurant</h2>' +
       '<div class="field"><label for="fName">Restaurant name</label>' +
-      '<input id="fName" type="text" autocomplete="off" autocapitalize="words" enterkeyhint="done" value="' + esc(prefill || '') + '"></div>' +
+      '<input id="fName" type="text" autocomplete="off" autocapitalize="words" enterkeyhint="next" value="' + esc(prefill || '') + '"></div>' +
       '<p id="addMsg" class="warn" hidden></p>' +
+      '<div class="field"><label for="fAddr">Street address <span class="opt">(optional)</span></label>' +
+      '<input id="fAddr" type="text" autocomplete="off" autocapitalize="words" enterkeyhint="done" placeholder="450 E Las Olas Blvd"></div>' +
+      (canSpot ? '<label class="check"><input type="checkbox" id="fHere"' + (opts.here ? ' checked' : '') + '>' +
+        '<span>I’m at this restaurant now. Save this spot so the app recognizes it.</span></label>' : '') +
       choicesHtml(null) +
       '<p class="hint">Tap an answer to save it.</p>' +
       '<div><button type="button" class="link" data-act="close">Cancel</button></div>',
       prefill ? 'h2' : '#fName'
     );
-    var input = $('#fName', sheetEl), msg = $('#addMsg', sheetEl);
+    var input = $('#fName', sheetEl), addr = $('#fAddr', sheetEl), msg = $('#addMsg', sheetEl), hereBox = $('#fHere', sheetEl);
     function check() {
       var d = findByName(input.value);
       if (d) {
@@ -744,11 +1109,13 @@ fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
       } else { msg.hidden = true; }
     }
     input.addEventListener('input', check);
-    input.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); input.blur(); } });
+    input.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); addr.focus(); } });
+    addr.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); addr.blur(); } });
     check();
     $$('.choice', sheetEl).forEach(function (b) {
       b.addEventListener('click', function () {
-        var name = tidy(input.value), status = b.getAttribute('data-status');
+        var name = tidy(input.value), status = b.getAttribute('data-status'), address = tidyAddr(addr.value);
+        var spot = hereBox && hereBox.checked ? spotHere() : null;
         if (!name) {
           msg.hidden = false;
           msg.textContent = 'Type the restaurant’s name first.';
@@ -758,12 +1125,16 @@ fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
         var before = snap(), d = findByName(name);
         if (d) {
           if (d.status !== status) { d.status = status; d.updated = todayISO(); }
+          if (address && !d.address) { d.address = address; d.geo = null; d.geoState = 'pending'; }
+          if (spot) d.spots = (d.spots || []).concat([spot]).slice(-8);
           closeSheet();
           commit(d.name + ' is marked ' + SAY[status] + '.', before);
           return;
         }
-        items.push({ id: uid(), name: name, status: status, updated: todayISO() });
+        var it = copyItem({ id: uid(), name: name, status: status, updated: todayISO(), address: address, spots: spot ? [spot] : [] });
+        items.push(it);
         filter = 'all';
+        if (spot && here.best) { here.pick = it.id; here.state = 'located'; }
         closeSheet();
         commit('Added ' + name + ' (' + SAY[status] + ').', before);
       });
@@ -771,13 +1142,32 @@ fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
   }
 
   /* Edit */
+  function mapStateText(it) {
+    var n = (it.spots || []).length, parts = [];
+    if (n) parts.push('Recognized by ' + plural(n, 'spot') + ' saved on a phone.');
+    if (it.geoState === 'ok') parts.push(n ? 'Its address is on the map too.' : 'Found on the map from its address.');
+    else if (it.geoState === 'pending') parts.push(sync.url ? 'Looking up the address on the map…' : 'The address is looked up on the map once the shared list is connected.');
+    else if (it.geoState === 'notfound') parts.push('Couldn’t find this address on the map. Check it, or save the spot when you’re there.');
+    else if (!n) parts.push('No address or saved spot yet, so the app can’t recognize it by location.');
+    return parts.join(' ');
+  }
   function openEdit(id) {
     var it = byId(id);
     if (!it) return;
+    var nSpots = (it.spots || []).length;
     openSheet(
       '<h2 id="sheetTitle" tabindex="-1">' + esc(it.name) + '</h2>' +
       '<p class="meta">' + (it.updated ? 'Last updated ' + fmt(it.updated) : 'From the original list') + '</p>' +
       choicesHtml(it.status) +
+      '<div class="where"><div class="legend">Where it is</div>' +
+      (canSaveSpot(it) ? '<div class="spot-cta"><button type="button" class="btn" id="spotBtn">' + PIN + 'Save this spot</button>' +
+        '<p class="hint">At ' + esc(it.name) + ' right now? Saving this spot lets the app recognize it next time.</p></div>' : '') +
+      '<div class="field"><label for="fAddr">Street address</label><div class="inline">' +
+      '<input id="fAddr" type="text" autocomplete="off" autocapitalize="words" enterkeyhint="done" placeholder="450 E Las Olas Blvd" value="' + esc(it.address || '') + '">' +
+      '<button type="button" class="btn" id="addrBtn" disabled>Save</button></div></div>' +
+      '<p class="hint" id="mapState">' + esc(mapStateText(it)) + '</p>' +
+      (nSpots ? '<div><button type="button" class="link danger" id="forgetSpots">Forget the ' + plural(nSpots, 'saved spot') + '</button></div>' : '') +
+      '</div>' +
       '<div class="field"><label for="fName">Fix the name</label><div class="inline">' +
       '<input id="fName" type="text" autocomplete="off" autocapitalize="words" enterkeyhint="done" value="' + esc(it.name) + '">' +
       '<button type="button" class="btn" id="renameBtn" disabled>Save</button></div></div>' +
@@ -797,6 +1187,34 @@ fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
         commit(cur.name + ' is now ' + SAY[status] + '.', before);
       });
     });
+    var spotBtn = $('#spotBtn', sheetEl);
+    if (spotBtn) spotBtn.addEventListener('click', function () { if (!byId(id)) { gone(); return; } saveSpot(id); });
+    var forget = $('#forgetSpots', sheetEl);
+    if (forget) forget.addEventListener('click', function () {
+      var cur = byId(id);
+      if (!cur) { gone(); return; }
+      var before = snap();
+      cur.spots = [];
+      closeSheet();
+      commit('Forgot the saved spots for ' + cur.name + '.', before);
+    });
+    var addr = $('#fAddr', sheetEl), addrBtn = $('#addrBtn', sheetEl);
+    function checkAddr() { var cur = byId(id) || it; addrBtn.disabled = tidyAddr(addr.value) === (cur.address || ''); }
+    function saveAddr() {
+      if (addrBtn.disabled) return;
+      var cur = byId(id);
+      if (!cur) { gone(); return; }
+      var before = snap();
+      cur.address = tidyAddr(addr.value);
+      cur.geo = null;
+      cur.geoState = cur.address ? 'pending' : 'none';
+      closeSheet();
+      commit(cur.address ? 'Saved the address for ' + cur.name + '.' : 'Removed the address for ' + cur.name + '.', before);
+    }
+    addr.addEventListener('input', checkAddr);
+    addr.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); saveAddr(); } });
+    addrBtn.addEventListener('click', saveAddr);
+
     var input = $('#fName', sheetEl), btn = $('#renameBtn', sheetEl), msg = $('#renameMsg', sheetEl);
     function check() {
       var cur = byId(id) || it, name = tidy(input.value), clash = findByName(name, id);
@@ -916,7 +1334,7 @@ fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
         connect(v).then(function (r) {
           openSharedConnected(r.started
             ? 'The shared list is set up with ' + r.total + ' restaurants. Now invite the other phone.'
-            : 'Connected. This phone now shows the shared list.' + (r.added ? ' ' + r.added + ' restaurant' + (r.added === 1 ? '' : 's') + ' from this phone were added to it.' : ''));
+            : 'Connected. This phone now shows the shared list.' + (r.added ? ' ' + plural(r.added, 'restaurant') + ' from this phone ' + (r.added === 1 ? 'was' : 'were') + ' added to it.' : ''));
         }, function () {
           btn.disabled = false;
           btn.textContent = 'Connect';
@@ -1049,7 +1467,7 @@ fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
       parsed.forEach(function (p) { c[p.status]++; });
       btn.disabled = !parsed.length;
       out.textContent = parsed.length
-        ? 'Found ' + parsed.length + ' restaurant' + (parsed.length === 1 ? '' : 's') + ': ' + c.pink + ' pink, ' + c.no + ' no pink, ' + c.unknown + ' not checked.'
+        ? 'Found ' + plural(parsed.length, 'restaurant') + ': ' + c.pink + ' pink, ' + c.no + ' no pink, ' + c.unknown + ' not checked.'
         : (ta.value.trim() ? 'No restaurants found in that text.' : 'Nothing pasted yet.');
     }
     ta.addEventListener('input', preview);
@@ -1060,7 +1478,7 @@ fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
         if (ex) {
           if (p.status !== 'unknown' && ex.status !== p.status) { ex.status = p.status; ex.updated = todayISO(); changed++; }
         } else {
-          items.push({ id: uid(), name: p.name, status: p.status, updated: todayISO() });
+          items.push(copyItem({ id: uid(), name: p.name, status: p.status, updated: todayISO(), address: knownAddress(p.name) }));
           added++;
         }
       });
@@ -1133,7 +1551,9 @@ fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
   items = load();
   loadSync();
   if (sync.url) syncState = navigator.onLine === false ? 'offline' : 'busy';
+  else fillAddresses('local');
   render();
+  initHere();
 
   function joinFromLink() {
     var h = location.hash;
@@ -1166,7 +1586,12 @@ fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
   window.addEventListener('hashchange', function () { if (location.hash.indexOf('#join=') === 0) handleJoin(); });
 
   if (IS_APP) {
-    document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') runSync(); });
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState !== 'visible') return;
+      runSync();
+      // Back in the app after a while? You may be somewhere new.
+      if (here.granted && here.state !== 'locating' && Date.now() - here.started > 90000) startLocate();
+    });
     window.addEventListener('online', function () { runSync(); });
     window.addEventListener('offline', function () { if (sync.url) setSyncState('offline'); });
     setInterval(function () { if (document.visibilityState === 'visible') runSync(); }, 45000);
@@ -1185,7 +1610,9 @@ fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
     get items() { return items; },
     get pending() { return pending; },
     get state() { return syncState; },
-    sync: runSync
+    get here() { return here.state; },
+    sync: runSync,
+    locate: startLocate
   };
 })();
 

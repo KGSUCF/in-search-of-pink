@@ -100,6 +100,48 @@ button { cursor: pointer; }
 }
 @keyframes pulse { from { opacity: 1; } to { opacity: 0.3; } }
 
+/* Where are we? */
+.here {
+  margin-top: 14px; padding: 14px 16px 10px; border-radius: 18px;
+  background: var(--surface); border: 1px solid var(--line);
+  display: grid; gap: 8px;
+}
+.here[data-kind="pink"] { background: var(--pink); border-color: var(--pink); color: var(--on-pink); }
+.here[data-kind="no"] { background: var(--no-soft); border-color: var(--no-soft); }
+.here[data-kind="unknown"] { border: 2px dashed var(--unk-b); }
+.here[data-kind="quiet"] { background: transparent; border-style: dashed; padding-block: 8px 4px; }
+.here[data-kind="locating"] { padding-bottom: 14px; }
+.here-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 28px; }
+.eyebrow {
+  display: inline-flex; align-items: center; gap: 6px; min-width: 0;
+  font-size: 13px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted);
+}
+.pin { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linejoin: round; }
+.here[data-kind="locating"] .pin { color: var(--pink); animation: bob 0.8s ease-in-out infinite alternate; }
+.here[data-kind="pink"] .eyebrow, .here[data-kind="pink"] .here-link, .here[data-kind="pink"] .here-text { color: var(--on-pink); }
+.here-name { margin: 0; font-size: 30px; font-weight: 700; line-height: 1.1; overflow-wrap: anywhere; text-wrap: balance; }
+.here-title { margin: 0; font-size: 18px; font-weight: 700; line-height: 1.3; text-wrap: balance; }
+.here-text { margin: 0; font-size: 15px; color: var(--muted); }
+.here-text b { color: var(--ink); overflow-wrap: anywhere; }
+.verdict { display: flex; align-items: center; gap: 12px; font-family: var(--f-display); font-size: 23px; line-height: 1.15; }
+.verdict .packet { height: 34px; min-width: 70px; font-size: 14px; }
+.here[data-kind="pink"] .packet.pink { background: var(--on-pink); color: var(--pink); }
+.here[data-kind="no"] .packet.no { background: var(--surface); }
+.here-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 18px; }
+.here-link {
+  border: 0; background: transparent; padding: 6px 0; min-height: 40px;
+  color: var(--pink-ink); font-weight: 700; font-size: 15px; text-decoration: underline; text-underline-offset: 3px;
+}
+.here-top .here-link { min-height: 32px; padding: 0; flex: none; }
+.here .btn .pin { width: 20px; height: 20px; }
+.btn.small { height: 42px; padding: 0 16px; font-size: 15px; }
+.quick { display: flex; gap: 10px; }
+.quick .btn { flex: 1; padding: 0 12px; }
+.here-list { list-style: none; margin: 0; padding: 0; }
+.here-list li + li { border-top: 1px solid var(--line); }
+.here-list .row { min-height: 52px; padding: 8px 0; }
+@keyframes bob { from { transform: translateY(0); } to { transform: translateY(-3px); } }
+
 /* Pinned search bar */
 .bar {
   position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5;
@@ -213,6 +255,12 @@ a.btn { text-decoration: none; }
   width: 100%; border: 2px solid var(--line); border-radius: 12px; background: var(--bg);
   padding: 12px 14px; font-size: 19px;
 }
+.opt { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.check { display: flex; align-items: flex-start; gap: 12px; font-size: 16px; line-height: 1.4; cursor: pointer; }
+.check input { width: 22px; height: 22px; margin: 1px 0 0; flex: none; accent-color: var(--pink); }
+.where { display: grid; gap: 10px; border-top: 1px solid var(--line); padding-top: 14px; }
+.spot-cta { display: grid; gap: 6px; justify-items: start; }
+.spot-cta .pin { width: 20px; height: 20px; }
 .field textarea.short { min-height: 0; font-size: 14px; word-break: break-all; }
 .field textarea { font-size: 15px; line-height: 1.5; resize: vertical; min-height: 180px; font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; }
 .field input:focus, .field textarea:focus { outline: none; border-color: var(--pink); }
@@ -263,5 +311,5 @@ fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
 .toast button { flex: none; border: 0; background: transparent; color: var(--bg); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; padding: 8px; }
 
 @keyframes rise { from { transform: translateY(32px); } to { transform: none; } }
-@media (prefers-reduced-motion: reduce) { .sheet, .toast, .sync-line .dot { animation: none !important; } }
+@media (prefers-reduced-motion: reduce) { .sheet, .toast, .sync-line .dot, .here .pin { animation: none !important; } }
 @media (min-width: 600px) { .brand span { font-size: 60px; } }
