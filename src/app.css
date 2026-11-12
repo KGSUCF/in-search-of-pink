@@ -292,6 +292,9 @@ fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
 .menu-item small { display: block; font-weight: 400; font-size: 14px; color: var(--muted); }
 .menu-item svg { width: 26px; height: 26px; flex: none; fill: none; stroke: var(--pink); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
 
+.install-steps { margin: 0; padding-left: 24px; display: grid; gap: 10px; font-size: 17px; }
+.install-steps li::marker { font-weight: 700; color: var(--pink-ink); }
+.install-notes { margin: 0; padding: 12px 14px 12px 30px; display: grid; gap: 8px; font-size: 15px; background: var(--no-soft); border-radius: 12px; }
 .steps { border-top: 1px solid var(--line); padding-top: 12px; font-size: 15px; }
 .steps summary { cursor: pointer; font-weight: 700; color: var(--pink-ink); min-height: 32px; }
 .steps ol { margin: 10px 0 0; padding-left: 22px; display: grid; gap: 8px; }

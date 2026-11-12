@@ -13,7 +13,13 @@ After a minute or two the link above starts working.
 
 ## 2. Install the app on your phone
 
-Open the link in Chrome, tap the three-dot menu, then **Install app** (some phones say **Add to Home screen**, then **Install**). The pink packet icon appears with your other apps.
+Open the link in **Chrome** itself, not the mini-browser that opens when you tap a link inside a text message. Tap the three-dot menu, then **Install app**, or **Add to Home screen** → **Install**. After a few seconds the app appears as **Pink List**. Samsung phones often put it only in the app list: swipe up, find it, press and hold, and choose **Add to Home**.
+
+If Install never produces an app, choose **Add to Home screen** → **Create shortcut** instead. The icon opens the app in a Chrome tab, and everything works the same.
+
+**iPhone:** open the link in **Safari**, tap **Share**, then **Add to Home Screen**. An app added this way keeps its own copy of the list, so open it from its icon, tap **On this phone only**, and paste the invite link.
+
+The app's **How to install** button shows these steps for whatever phone and browser it's opened in.
 
 The first time you open it, tap **Use my location** and allow it when Chrome asks.
 
@@ -32,7 +38,9 @@ The shared list also looks up each restaurant's address on the map, which is how
 
 ## 4. Add the second phone
 
-On the other phone, tap the invite link so it opens in **Chrome** (if it opens inside another app, choose **Open in Chrome**). Wait for **You're on the shared list**, then install the app from Chrome's three-dot menu or the **Install app** button.
+On the other phone, tap the invite link so it opens in **Chrome** (if it opens inside another app, choose **Open in Chrome**). Wait for **You're on the shared list**, then install the app as in step 2.
+
+Another way: install the app first, open it, tap **On this phone only**, and paste the invite link.
 
 ## How it knows where you are
 
@@ -62,4 +70,4 @@ On the other phone, tap the invite link so it opens in **Chrome** (if it opens i
 
 ## Updating the app
 
-After changing anything in `src/`, raise the number in `pink-v4` at the top of `src/sw.js`, then run `python3 src/build.py`. Phones pick up the new version the next time the app opens. Saved lists are not affected.
+After changing anything in `src/`, raise the number in `pink-v5` at the top of `src/sw.js`, then run `python3 src/build.py`. Phones pick up the new version the next time the app opens. Saved lists are not affected.

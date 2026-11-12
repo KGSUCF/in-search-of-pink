@@ -57,6 +57,9 @@
   var sheetOpen = false;
   var prevQuery = '';
   var IS_APP = !!document.querySelector('link[rel="manifest"]');
+  var STANDALONE = (function () {
+    try { return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true; } catch (e) { return false; }
+  })();
   var useHistory = (function () { try { return window.top === window.self; } catch (e) { return false; } })();
   var collator = new Intl.Collator('en', { numeric: true, sensitivity: 'base' });
 
@@ -905,6 +908,7 @@
   /* Menu */
   var ICON_SYNC = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8"/><path d="M4 3v5h5"/><path d="M4 13a8 8 0 0 0 14.3 4.9L20 16"/><path d="M20 21v-5h-5"/></svg>';
   var ICON_SHARE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3M7.5 7.5 12 3l4.5 4.5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>';
+  var ICON_INSTALL = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M12 7v7M9 11l3 3 3-3"/><path d="M10.5 18.5h3"/></svg>';
   var ICON_IMPORT = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7.5 10.5 12 15l4.5-4.5"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>';
   function openMenu() {
     openSheet(
@@ -917,7 +921,10 @@
       '<button type="button" class="menu-item" data-act="share">' + ICON_SHARE +
       '<span>Send the list as text<small>For a text message, or a backup copy</small></span></button>' +
       '<button type="button" class="menu-item" data-act="import">' + ICON_IMPORT +
-      '<span>Import a list<small>Paste a list sent from this app</small></span></button></div>' +
+      '<span>Import a list<small>Paste a list sent from this app</small></span></button>' +
+      (IS_APP && !STANDALONE ? '<button type="button" class="menu-item" data-act="install">' + ICON_INSTALL +
+        '<span>Install on this phone<small>Put the app on your home screen</small></span></button>' : '') +
+      '</div>' +
       '<div class="actions"><button type="button" class="btn quiet" data-act="close">Close</button></div>'
     );
   }
@@ -945,8 +952,8 @@
       openSheet(
         '<h2 id="sheetTitle" tabindex="-1">Share with another phone</h2>' +
         '<p class="meta">Keep one list for both phones. It lives in a Google Sheet you own, and a change on either phone shows up on the other.</p>' +
-        '<p class="hint">Got an invite link from someone? Open that link in Chrome instead; it connects this phone for you.</p>' +
-        '<div class="field"><label for="syncUrl">Web app link from Google</label>' +
+        '<p class="hint">Got an invite link? Paste it here, or open it in Chrome.</p>' +
+        '<div class="field"><label for="syncUrl">Invite link, or the Web app link from Google</label>' +
         '<input id="syncUrl" type="url" inputmode="url" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="https://script.google.com/macros/s/…/exec"></div>' +
         '<p id="syncMsg" class="warn"' + (note ? '' : ' hidden') + '>' + esc(note || '') + '</p>' +
         '<div class="actions"><button type="button" class="btn" id="connectBtn" disabled>Connect</button>' +
@@ -960,17 +967,22 @@
         null
       );
       var input = $('#syncUrl', sheetEl), btn = $('#connectBtn', sheetEl), msg = $('#syncMsg', sheetEl);
+      function linkFrom(text) {
+        var v = String(text || '').trim(), m = v.match(/#join=(\S+)/);
+        if (m) { try { v = decodeURIComponent(m[1]); } catch (e) {} }
+        return v.replace(/\/$/, '');
+      }
       input.addEventListener('input', function () {
-        var v = input.value.trim();
+        var v = linkFrom(input.value);
         btn.disabled = !v;
         if (v && !validUrl(v) && /\/dev\/?$/.test(v)) { msg.hidden = false; msg.textContent = 'That is the test link. Use the Web app URL that ends in /exec.'; }
         else msg.hidden = true;
       });
       btn.addEventListener('click', function () {
-        var v = input.value.trim();
+        var v = linkFrom(input.value);
         if (!validUrl(v)) {
           msg.hidden = false;
-          msg.textContent = 'That doesn’t look like the Web app link. It starts with https://script.google.com/macros/s/ and ends in /exec.';
+          msg.textContent = 'That doesn’t look like an invite link or the Web app link. The Web app link starts with https://script.google.com/macros/s/ and ends in /exec.';
           return;
         }
         btn.disabled = true;
@@ -1030,6 +1042,83 @@
       $('#stopYes', area).addEventListener('click', function () { disconnect(); closeSheet(); showToast('This phone has stopped sharing.', null); });
       $('#stopNo', area).addEventListener('click', function () { openSharedConnected(); });
     });
+  }
+
+  /* Install help: steps for the phone and browser this page is open in */
+  function installGuide() {
+    var ua = navigator.userAgent || '';
+    var ios = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    var android = /Android/i.test(ua);
+    var inApp = /FBAN|FBAV|FB_IAB|Instagram|Snapchat|Line\/|GSA\/|WhatsApp|Twitter|; wv\)/i.test(ua);
+    var MENU = '<b>⋮</b>';
+    var g = { where: '', steps: [], notes: [] };
+    if (ios) {
+      if (inApp || /FxiOS|EdgiOS|OPiOS|DuckDuckGo/i.test(ua)) {
+        g.where = 'iPhone, inside another app';
+        g.steps = ['Open this page in <b>Safari</b>: look for <b>Open in Safari</b> or a compass icon, or copy the address below and paste it into Safari.',
+          'In Safari, tap <b>Share</b> (a square with an arrow pointing up), then <b>Add to Home Screen</b>, then <b>Add</b>.'];
+      } else if (/CriOS/i.test(ua)) {
+        g.where = 'iPhone, Chrome';
+        g.steps = ['Tap the <b>Share</b> button in the address bar, at the top right.', 'Tap <b>Add to Home Screen</b>, then <b>Add</b>.'];
+        g.notes.push('Don’t see <b>Add to Home Screen</b>? Open this page in Safari and use Safari’s <b>Share</b> button instead.');
+      } else {
+        g.where = 'iPhone, Safari';
+        g.steps = ['Tap the <b>Share</b> button (a square with an arrow pointing up) at the bottom of the screen.',
+          'Scroll down and tap <b>Add to Home Screen</b>.', 'Tap <b>Add</b>. The pink packet icon appears on your Home Screen.'];
+      }
+      g.notes.push('<b>Then open the app from its new icon.</b> On iPhone the installed app keeps its own copy of the list, separate from Safari. To connect it to the shared list, tap <b>On this phone only</b> in the app and paste the invite link.');
+    } else if (android) {
+      if (inApp) {
+        g.where = 'Android, inside another app';
+        g.steps = ['This page is open inside another app, which can’t install it. Tap ' + MENU + ' or the menu at the top right and choose <b>Open in Chrome</b> (or <b>Open in browser</b>).',
+          'In Chrome, tap ' + MENU + ', then <b>Install app</b> (or <b>Add to Home screen</b>, then <b>Install</b>).'];
+        g.notes.push('If the list isn’t shared once you’re in Chrome, open the invite link again from Chrome.');
+      } else if (/SamsungBrowser/i.test(ua)) {
+        g.where = 'Samsung Internet';
+        g.steps = ['Tap the menu button <b>☰</b> at the bottom right.', 'Tap <b>Add page to</b>, then <b>Home screen</b>.'];
+        g.notes.push('See an install icon in the address bar? Tapping it does the same thing.');
+      } else if (/Firefox/i.test(ua)) {
+        g.where = 'Firefox';
+        g.steps = ['Tap ' + MENU + '.', 'Tap <b>Add app to Home screen</b> (on older versions, <b>Install</b> or <b>Add to Home screen</b>).'];
+      } else if (/EdgA|OPR|OPT\/|DuckDuckGo/i.test(ua)) {
+        g.where = 'Android';
+        g.steps = ['This browser may not install apps. Copy the address below and open it in <b>Chrome</b>.',
+          'In Chrome, tap ' + MENU + ', then <b>Install app</b> (or <b>Add to Home screen</b>, then <b>Install</b>).'];
+      } else {
+        g.where = 'Android, Chrome';
+        g.steps = ['Tap ' + MENU + ' at the top right of Chrome.',
+          'Tap <b>Install app</b>, or <b>Add to Home screen</b>. If Chrome asks, choose <b>Install</b> rather than <b>Create shortcut</b>.',
+          'Wait a few seconds, then open the app from the pink packet icon on your home screen or in your app list.'];
+      }
+      g.notes.push('<b>No install option, or an X at the top left?</b> The page is open in a mini-browser inside another app, such as Messages. Tap ' + MENU + ', then <b>Open in Chrome</b>, and try again.');
+      g.notes.push('<b>In an Incognito tab?</b> Chrome can’t install from Incognito. Open the page in a normal tab.');
+      g.notes.push('<b>Installed but no icon on the home screen?</b> Samsung and some other phones put new apps only in the app list. Swipe up to open it, find <b>Pink List</b>, then press and hold it and choose <b>Add to Home</b>.');
+      g.notes.push('<b>Tapped Install but it isn\u2019t in the app list either?</b> Some phones (Xiaomi, Redmi, Oppo, Huawei) stop Chrome from adding icons: go to <b>Settings › Apps › Chrome › Permissions</b> and allow <b>Home screen shortcuts</b>.');
+      g.notes.push('<b>Still no app?</b> Go back to ' + MENU + ' and choose <b>Add to Home screen</b> › <b>Create shortcut</b>. The icon opens the app in a Chrome tab, and everything works the same.');
+    } else {
+      g.where = 'Computer';
+      g.steps = ['This app is made for phones. Open the address below on your phone.'];
+      g.notes.push('Chrome and Edge on a computer can install it too, from the install icon at the right end of the address bar.');
+    }
+    return g;
+  }
+  function openInstallHelp() {
+    var g = installGuide(), addr = location.host + location.pathname;
+    openSheet(
+      '<h2 id="sheetTitle" tabindex="-1">Install on this phone</h2>' +
+      '<p class="meta">Steps for: ' + esc(g.where) + '</p>' +
+      (installEvent ? '<div><button type="button" class="btn" id="installNow">Install app</button></div>' : '') +
+      '<ol class="install-steps">' + g.steps.map(function (s) { return '<li>' + s + '</li>'; }).join('') + '</ol>' +
+      '<div class="field"><label for="appAddr">The app’s address</label><div class="inline">' +
+      '<input id="appAddr" type="text" readonly value="' + esc(addr) + '"><button type="button" class="btn quiet" id="copyAddr">Copy</button></div></div>' +
+      '<p class="hint" id="addrMsg" role="status"></p>' +
+      (g.notes.length ? '<ul class="install-notes">' + g.notes.map(function (n) { return '<li>' + n + '</li>'; }).join('') + '</ul>' : '') +
+      '<div class="actions"><button type="button" class="btn quiet" data-act="close">Close</button></div>'
+    );
+    var a = $('#appAddr', sheetEl);
+    $('#copyAddr', sheetEl).addEventListener('click', wireCopy(addr, a, $('#addrMsg', sheetEl), 'Address copied. Paste it into the browser’s address bar.'));
+    var now = $('#installNow', sheetEl);
+    if (now) now.addEventListener('click', function () { closeSheet(); $('#installBtn').click(); });
   }
 
   /* Text list */
@@ -1153,6 +1242,7 @@
     else if (act === 'share') openShare();
     else if (act === 'import') openImport();
     else if (act === 'shared') openShared();
+    else if (act === 'install') openInstallHelp();
     else if (act === 'edit') openEdit(b.getAttribute('data-id'));
   });
   scrimEl.addEventListener('click', function () { closeSheet(); });
@@ -1179,17 +1269,28 @@
     openShared();
   });
 
+  function showInstallPill() {
+    if (!IS_APP || STANDALONE) return;
+    var b = $('#installBtn');
+    b.textContent = installEvent ? 'Install app' : 'How to install';
+    b.hidden = false;
+  }
   window.addEventListener('beforeinstallprompt', function (e) {
     e.preventDefault();
     installEvent = e;
-    $('#installBtn').hidden = false;
+    showInstallPill();
   });
   window.addEventListener('appinstalled', function () { $('#installBtn').hidden = true; installEvent = null; });
   $('#installBtn').addEventListener('click', function () {
-    if (!installEvent) return;
-    installEvent.prompt();
-    installEvent.userChoice.then(function () { installEvent = null; $('#installBtn').hidden = true; }, function () {});
+    if (!installEvent) { openInstallHelp(); return; }
+    var ev = installEvent;
+    ev.prompt();
+    ev.userChoice.then(function (c) {
+      installEvent = null;
+      if (c && c.outcome === 'accepted') $('#installBtn').hidden = true; else showInstallPill();
+    }, function () {});
   });
+  setTimeout(showInstallPill, 2500);
 
   /* ---------- start ---------- */
   items = load();
