@@ -355,7 +355,7 @@
   /* ---------- shared list: talking to the Google Sheet ---------- */
   function validUrl(u) {
     u = String(u || '').trim();
-    if (/^https:\/\/script\.google\.com\/(a\/[^/\s]+\/)?macros\/s\/[\w-]+\/exec\/?$/.test(u)) return true;
+    if (/^https:\/\/script\.google\.com\/(macros|a\/macros\/[^/\s]+|a\/[^/\s]+\/macros)\/s\/[\w-]+\/exec\/?$/.test(u)) return true;
     var local = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
     return local && /^http:\/\/(localhost|127\.0\.0\.1):\d+\//.test(u);
   }
@@ -967,6 +967,13 @@
         null
       );
       var input = $('#syncUrl', sheetEl), btn = $('#connectBtn', sheetEl), msg = $('#syncMsg', sheetEl);
+      // Explain the links people most often paste by mistake.
+      function wrongLink(v) {
+        if (/docs\.google\.com\/spreadsheets/i.test(v)) return 'That’s the link to the spreadsheet itself. The app needs the Web app link from Apps Script, which ends in /exec. In the spreadsheet, open Extensions › Apps Script, then Deploy › Manage deployments, and copy the Web app URL.';
+        if (/script\.google\.com\/.*\/edit/i.test(v)) return 'That’s the link to the script editor. The app needs the Web app link, which ends in /exec. In Apps Script, open Deploy › Manage deployments and copy the Web app URL. No deployment listed? Use Deploy › New deployment first.';
+        if (/script\.google\.com\/.*\/dev\/?$/i.test(v)) return 'That’s the test link. Use the Web app URL that ends in /exec.';
+        return '';
+      }
       function linkFrom(text) {
         var v = String(text || '').trim(), m = v.match(/#join=(\S+)/);
         if (m) { try { v = decodeURIComponent(m[1]); } catch (e) {} }
@@ -975,14 +982,15 @@
       input.addEventListener('input', function () {
         var v = linkFrom(input.value);
         btn.disabled = !v;
-        if (v && !validUrl(v) && /\/dev\/?$/.test(v)) { msg.hidden = false; msg.textContent = 'That is the test link. Use the Web app URL that ends in /exec.'; }
-        else msg.hidden = true;
+        var why = v && !validUrl(v) ? wrongLink(v) : '';
+        msg.hidden = !why;
+        msg.textContent = why;
       });
       btn.addEventListener('click', function () {
         var v = linkFrom(input.value);
         if (!validUrl(v)) {
           msg.hidden = false;
-          msg.textContent = 'That doesn’t look like an invite link or the Web app link. The Web app link starts with https://script.google.com/macros/s/ and ends in /exec.';
+          msg.textContent = wrongLink(v) || 'That doesn’t look like an invite link or the Web app link. The Web app link starts with https://script.google.com/macros/s/ and ends in /exec.';
           return;
         }
         btn.disabled = true;
