@@ -44,15 +44,15 @@ with sync_playwright() as p:
     _, F = phone(b)
     F.goto(APP); F.wait_for_timeout(500)
     n = names(F)
-    check("fresh install: no Big City, has Sweetwaters", "Big City" not in n and "Sweetwaters" in n and len(n) == 25)
+    check("fresh install: no Big City, has Sweetwaters", "Big City" not in n and "Sweetwaters" in n and "The Mooring" in n and len(n) == 64)
     F.reload(); F.wait_for_timeout(400)
-    check("fresh install: no duplicate after reopening", names(F).count("Sweetwaters") == 1 and len(names(F)) == 25)
+    check("fresh install: no duplicate after reopening", names(F).count("Sweetwaters") == 1 and len(names(F)) == 64)
 
     # 2. a phone that saved the older list before this update
     _, O = phone(b, seed_script(OLD))
     O.goto(APP); O.wait_for_timeout(500)
     n = names(O)
-    check(f"older list on a phone catches up: {n}", "Big City" not in n and "Sweetwaters" in n and "Kaluz" in n)
+    check(f"older list on a phone catches up: {n}", "Big City" not in n and "Sweetwaters" in n and "Kaluz" in n and "The Mooring" in n and "Lobster Bar (Newport)" in n)
     sw = [i for i in O.evaluate("window.__pink.items") if i["name"] == "Sweetwaters"][0]
     check("Sweetwaters starts as Not checked, with its address", sw["status"] == "unknown" and sw["address"] == "58 E Las Olas Blvd")
     O.reload(); O.wait_for_timeout(400)
@@ -71,7 +71,7 @@ with sync_playwright() as p:
     S.wait_for_timeout(1500)
     S.wait_for_function("() => window.__pink.state === 'ok' && window.__pink.pending.length === 0", timeout=10000)
     sn = server_names()
-    check(f"shared list catches up: {sn}", "Big City" not in sn and "Sweetwaters" in sn)
+    check(f"shared list catches up: {sn}", "Big City" not in sn and "Sweetwaters" in sn and "The Mooring" in sn and len(sn) == 4 - 1 + 1 + 39)
     b.close()
 
 print("errors:", errors)

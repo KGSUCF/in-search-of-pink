@@ -62,7 +62,7 @@ with sync_playwright() as p:
     A.click("#connectBtn")
     A.wait_for_selector("#inviteText", timeout=8000)
     s = server_items()
-    check(f"empty sheet filled from A ({len(s)} rows)", len(s) == 26 and s.get("Boathouse") == "pink" and s.get("Wild Sea") == "pink")
+    check(f"empty sheet filled from A ({len(s)} rows)", len(s) == 65 and s.get("Boathouse") == "pink" and s.get("Wild Sea") == "pink")
     check("A shows shared + up to date", "Up to date" in A.inner_text("#sharedState") and A.locator(".good").is_visible())
     invite = A.input_value("#inviteText")
     check("invite link carries the sheet link", "#join=" in invite)

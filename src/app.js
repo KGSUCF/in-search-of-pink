@@ -35,10 +35,54 @@
     ['Las Vegas', 'no', ''], // many branches: learns its spot when you save it
     ['Sweetwaters', 'unknown', '58 E Las Olas Blvd']
   ];
+  // Newport, Rhode Island (and a few places nearby). Addresses name the town so the sheet looks in the right place.
+  var NEWPORT = [
+    ['The Mooring', 'pink', '1 Sayers Wharf, Newport, RI'],
+    ['22 Bowen’s', 'unknown', '22 Bowens Wharf, Newport, RI', ['22 Bowen']],
+    ['Red Parrot', 'no', '348 Thames St, Newport, RI'],
+    ['Bar ’Cino', 'no', '22 Washington Sq, Newport, RI', ['Bar Cino']],
+    ['Smoke House', 'no', '31 Scotts Wharf, Newport, RI'],
+    ['Brick Alley', 'no', '140 Thames St, Newport, RI', ['Brick Alley Pub']],
+    ['Diego’s', 'pink', '11 Bowens Wharf, Newport, RI'],
+    ['Stoneacre Brasserie', 'no', '28 Washington Square, Newport, RI'],
+    ['Stoneacre Garden', 'no', '151 Swinburne Row, Newport, RI'],
+    ['La Vecina', 'no', '24 Washington Square, Newport, RI', ['La Vecina Taqueria']],
+    ['Benjamin’s', 'unknown', '254 Thames St, Newport, RI', ['Benjamin’s Raw Bar']],
+    ['Cru', 'pink', '1 Casino Ter, Newport, RI', ['Cru Cafe']],
+    ['I M Sushi', 'unknown', '258 Bellevue Ave, Newport, RI', ['IM Sushi']],
+    ['The Reef', 'pink', '10 Howard Wharf, Newport, RI'],
+    ['Midtown Oyster Bar', 'no', '345 Thames St, Newport, RI'],
+    ['The Landing', 'no', '30 Bowens Wharf, Newport, RI'],
+    ['The Elms Cafe', 'unknown', '367 Bellevue Ave, Newport, RI'],
+    ['Corner Cafe', 'unknown', '110 Broadway, Newport, RI'],
+    ['Belle’s', 'unknown', '1 Washington St, Newport, RI'],
+    ['La Forge', 'no', '186 Bellevue Ave, Newport, RI', ['La Forge Casino Restaurant']],
+    ['Caleb & Broad', 'unknown', '162 Broadway, Newport, RI'],
+    ['Lobster Bar (Newport)', 'unknown', '31 Bowens Wharf, Newport, RI', ['The Lobster Bar Newport']],
+    ['Newport Brewery', 'unknown', '293 JT Connell Hwy, Newport, RI', ['Newport Craft Brewing']],
+    ['Black Pearl', 'no', '30 Bannisters Wharf, Newport, RI', ['The Black Pearl']],
+    ['Beech', 'unknown', '13 Narragansett Ave, Jamestown, RI'],
+    ['Nikolas Pizza', 'unknown', '38 Memorial Blvd W, Newport, RI'],
+    ['Pasta Beach', 'unknown', '138 Bellevue Ave, Newport, RI'],
+    ['Safari Room', 'unknown', '65 Ridge Rd, Newport, RI', ['The Safari Room at OceanCliff']],
+    ['Bar & Board', 'unknown', '282 Thames St, Newport, RI'],
+    ['Wally’s Wieners', 'unknown', '464 Thames St, Newport, RI'],
+    ['Yagi', 'unknown', '20 Long Wharf Mall, Newport, RI', ['Yagi Noodles']],
+    ['Hungry Monkey', 'unknown', '124 Broadway, Newport, RI', ['The Hungry Monkey']],
+    ['Zelda’s', 'unknown', '528 Thames St, Newport, RI'],
+    ['The Wharf', 'unknown', '37 Bowens Wharf, Newport, RI', ['Wharf Pub']],
+    ['Scales & Shells', 'unknown', '527 Thames St, Newport, RI'],
+    ['Flo’s Clam Shack', 'unknown', '4 Wave Ave, Middletown, RI'],
+    ['Mission Burger', 'unknown', '58 Aquidneck Ave, Newport, RI', ['Mission']],
+    ['Flora', 'unknown', '24 Lees Wharf, Newport, RI', ['Flora at Gardiner House']],
+    ['40 North', 'unknown', '351 Thames St, Newport, RI', ['Forty 1 North']]
+  ];
+  SEED = SEED.concat(NEWPORT);
   // Changes to the built-in list after people started using it. Each is applied once on every
   // phone, and once to each shared list, so lists made from the older built-in list catch up.
   var UPDATES = [
-    { id: '2026-10-19', remove: ['Big City', 'Big City Tavern'], add: [['Sweetwaters', 'unknown', '58 E Las Olas Blvd']] }
+    { id: '2026-10-19', remove: ['Big City', 'Big City Tavern'], add: [['Sweetwaters', 'unknown', '58 E Las Olas Blvd']] },
+    { id: '2026-11-15-newport', remove: [], add: NEWPORT }
   ];
   var BADGE = { pink: 'Pink', no: 'No', unknown: '?' };
   var SAY = { pink: 'Pink', no: 'No pink', unknown: 'Not checked' };
@@ -1133,7 +1177,7 @@
   function shareText() {
     var groups = { pink: [], no: [], unknown: [] };
     sorted(items).forEach(function (it) { groups[it.status].push(it.name); });
-    var out = 'In Search of Pink (' + fmt(todayISO()) + ')\nSweet’N Low in the sugar caddy, Fort Lauderdale\n';
+    var out = 'In Search of Pink (' + fmt(todayISO()) + ')\nSweet’N Low in the sugar caddy\n';
     [['pink', 'PINK'], ['no', 'NO PINK'], ['unknown', 'NOT CHECKED']].forEach(function (g) {
       if (groups[g[0]].length) out += '\n' + g[1] + '\n' + groups[g[0]].join('\n') + '\n';
     });

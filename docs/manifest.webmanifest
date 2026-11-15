@@ -1,7 +1,7 @@
 {
   "name": "In Search of Pink",
   "short_name": "Pink List",
-  "description": "Which Fort Lauderdale restaurants have Sweet'N Low in the sugar caddy",
+  "description": "Which restaurants in Fort Lauderdale and Newport have Sweet'N Low in the sugar caddy",
   "id": "./",
   "start_url": "./",
   "scope": "./",

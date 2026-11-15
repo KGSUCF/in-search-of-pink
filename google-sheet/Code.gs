@@ -10,7 +10,9 @@
  *
  * You can edit the "Restaurants" tab by hand too:
  *   - Pink packets?  type Pink, No or Not checked
- *   - Address        type a street address; the script finds it on the map
+ *   - Address        type a street address; the script finds it on the map.
+ *                    Fort Lauderdale is assumed unless the address names a town and state,
+ *                    such as "31 Bowens Wharf, Newport, RI".
  *   - Leave the ID column and the two map columns alone.
  *
  * Addresses are found on the map with Google's geocoder (built into Apps Script).
@@ -30,8 +32,15 @@ const ORDER = ['name', 'status', 'updated', 'id', 'address', 'geo', 'spots'];
 const LABEL = { pink: 'Pink', no: 'No', unknown: 'Not checked' };
 const NOT_FOUND = 'not found';
 const GEOCODE_BUDGET_MS = 12000;
-// Rough box around Broward County, so "450 E Las Olas Blvd" means the one in Fort Lauderdale.
-const AREA = { south: 25.95, west: -80.45, north: 26.45, east: -80.0 };
+// The places the list covers. An address that names one of these states is looked up inside that
+// box; an address with no town or state is taken to be in Fort Lauderdale (the first area).
+const AREAS = [
+  { name: 'Fort Lauderdale', match: /,\s*(FL|Fla\.?|Florida)\b/i, suffix: ', Fort Lauderdale, FL',
+    south: 25.95, west: -80.45, north: 26.45, east: -80.0 },
+  { name: 'Newport', match: /,\s*(RI|Rhode Island)\b/i, suffix: ', Newport, RI',
+    south: 41.35, west: -71.50, north: 41.70, east: -71.10 }
+];
+const NOTE_V = 'v2|'; // notes written by this version of the script start with this
 
 function doGet() {
   return withTable_(function (t) {
@@ -119,7 +128,17 @@ function openTable_() {
       if (isNew) id = Utilities.getUuid();
       const address = cleanAddress_(cell('address'));
       const geoText = String(cell('geo')).trim().toLowerCase();
-      const geo = parsePoint_(geoText);
+      let geo = parsePoint_(geoText);
+      const rawNote = String(notes[i][0] || '');
+      const current = rawNote.indexOf(NOTE_V) === 0;
+      const noteAddr = current ? rawNote.slice(NOTE_V.length) : rawNote;
+      // The first version of this script only knew Fort Lauderdale. Look again at anything it
+      // couldn't find, or found outside the area the address names.
+      let recheck = false;
+      if (!current && address) {
+        if (geoText === NOT_FOUND) recheck = true;
+        else if (geo && !inArea_(geo, areaFor_(address) || AREAS[0])) { geo = null; recheck = true; }
+      }
       items.push({
         id: id,
         name: name,
@@ -127,7 +146,7 @@ function openTable_() {
         updated: dateFrom_(cell('updated')),
         address: address,
         geo: geo,
-        geoFor: (geo || geoText === NOT_FOUND) ? String(notes[i][0] || '') : '',
+        geoFor: !recheck && (geo || geoText === NOT_FOUND) ? noteAddr : '',
         spots: parseSpots_(cell('spots')),
         isNew: isNew
       });
@@ -163,7 +182,7 @@ function writeTable_(t) {
       if (!it.address) return '';
       if (it.geo) return pointText_(it.geo);
       return it.geoFor === it.address ? NOT_FOUND : '';
-    }, true).setNotes(items.map(function (it) { return [it.address && it.geoFor === it.address ? it.geoFor : '']; }));
+    }, true).setNotes(items.map(function (it) { return [it.address && it.geoFor === it.address ? NOTE_V + it.geoFor : '']; }));
     put('spots', function (it) { return it.spots.map(pointText_).join('; '); }, true);
   }
   const rule = SpreadsheetApp.newDataValidation()
@@ -199,12 +218,25 @@ function geocodeMissing_(items) {
   return changed;
 }
 
+function areaFor_(address) {
+  for (let i = 0; i < AREAS.length; i++) if (AREAS[i].match.test(address)) return AREAS[i];
+  return null;
+}
+
+function inArea_(p, a) {
+  const pad = 0.25;
+  return p[0] >= a.south - pad && p[0] <= a.north + pad && p[1] >= a.west - pad && p[1] <= a.east + pad;
+}
+
 function geocode_(address) {
-  const query = /\b(fl|florida)\b/i.test(address) ? address : address + ', Fort Lauderdale, FL';
-  const res = Maps.newGeocoder()
-    .setRegion('us')
-    .setBounds(AREA.south, AREA.west, AREA.north, AREA.east)
-    .geocode(query);
+  const named = areaFor_(address);
+  // An address that already names a town and state (", MA" or a ZIP code) is looked up as written.
+  const complete = !!named || /,\s*[A-Z]{2}\b|\b\d{5}\b/.test(address);
+  const area = named || (complete ? null : AREAS[0]);
+  const query = complete ? address : address + AREAS[0].suffix;
+  let geocoder = Maps.newGeocoder().setRegion('us');
+  if (area) geocoder = geocoder.setBounds(area.south, area.west, area.north, area.east);
+  const res = geocoder.geocode(query);
   if (!res || res.status !== 'OK' || !res.results || !res.results.length) return null;
   const best = res.results[0];
   const vague = ['locality', 'sublocality', 'neighborhood', 'postal_code', 'route', 'country',
@@ -214,7 +246,7 @@ function geocode_(address) {
   const loc = best.geometry && best.geometry.location;
   if (!loc) return null;
   const p = [round5_(loc.lat), round5_(loc.lng)];
-  if (p[0] < AREA.south - 0.5 || p[0] > AREA.north + 0.5 || p[1] < AREA.west - 0.5 || p[1] > AREA.east + 0.5) return null;
+  if (area && !inArea_(p, area)) return null;
   return p;
 }
 

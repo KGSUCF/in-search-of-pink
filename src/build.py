@@ -36,7 +36,7 @@ index = f"""<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>In Search of Pink</title>
-<meta name="description" content="Which Fort Lauderdale restaurants have Sweet'N Low in the sugar caddy">
+<meta name="description" content="Which restaurants in Fort Lauderdale and Newport have Sweet'N Low in the sugar caddy">
 <meta name="theme-color" content="#FBF5F7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#171214" media="(prefers-color-scheme: dark)">
 <meta name="mobile-web-app-capable" content="yes">
@@ -66,7 +66,7 @@ body {{ margin: 0; }}
 manifest = {
     "name": "In Search of Pink",
     "short_name": "Pink List",
-    "description": "Which Fort Lauderdale restaurants have Sweet'N Low in the sugar caddy",
+    "description": "Which restaurants in Fort Lauderdale and Newport have Sweet'N Low in the sugar caddy",
     "id": "./",
     "start_url": "./",
     "scope": "./",

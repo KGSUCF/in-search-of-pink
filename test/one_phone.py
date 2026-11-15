@@ -20,9 +20,9 @@ with sync_playwright() as p:
     page.goto(URL)
     page.wait_for_timeout(1500)
     rows = page.locator(".row")
-    check("25 restaurants pre-loaded", rows.count() == 25)
+    check("64 restaurants pre-loaded", rows.count() == 64)
     counts = {k: page.locator(f'[data-n="{k}"]').inner_text() for k in ["all", "pink", "no", "unknown"]}
-    check(f"counts {counts}", counts == {"all": "25", "pink": "11", "no": "10", "unknown": "4"})
+    check(f"counts {counts}", counts == {"all": "64", "pink": "15", "no": "21", "unknown": "28"})
     page.screenshot(path=OUT + "s1_home_light.png")
 
     # search
@@ -47,7 +47,7 @@ with sync_playwright() as p:
 
     # persists across reload
     page.reload(); page.wait_for_timeout(800)
-    check("26 after reload (saved)", rows.count() == 26)
+    check("65 after reload (saved)", rows.count() == 65)
 
     # correct a status + undo
     page.locator(".row", has_text="Doc B").click(); page.wait_for_timeout(400)
@@ -75,11 +75,11 @@ with sync_playwright() as p:
     page.click("#delBtn"); page.wait_for_timeout(400)
     page.screenshot(path=OUT + "s5_delete_confirm.png")
     page.click("#delYes")
-    check("Kaluz removed", page.locator(".row", has_text="Kaluz").count() == 0 and page.inner_text('[data-n="unknown"]') == "3")
+    check("Kaluz removed", page.locator(".row", has_text="Kaluz").count() == 0 and page.inner_text('[data-n="unknown"]') == "27")
 
     # filters
     page.click('.chip[data-f="pink"]')
-    check("Pink filter shows 12", rows.count() == 12)
+    check("Pink filter shows 16", rows.count() == 16)
     page.click('.chip[data-f="all"]')
 
     # share text
@@ -98,7 +98,7 @@ with sync_playwright() as p:
     t = page.inner_text("#toastMsg")
     check(f"import result: {t}", "2 added, 2 updated" in t)
     check("Boathouse now Pink", page.locator('.row', has_text="Boathouse").get_attribute("aria-label").endswith("Pink"))
-    check("60 Vines still sorted first", rows.first.inner_text().startswith("60 Vines"))
+    check("numbers sort first (22 Bowen’s)", rows.first.inner_text().startswith("22 Bowen"))
 
     # round trip: share text re-imported changes nothing
     parsed = page.evaluate("window.__pink.parseList(document.createElement('div').textContent || '')")
@@ -116,7 +116,7 @@ with sync_playwright() as p:
     page.wait_for_timeout(1000)
     ctx.set_offline(True)
     page.reload(); page.wait_for_timeout(1000)
-    check("opens with no signal", page.locator(".row").count() == 27)
+    check("opens with no signal", page.locator(".row").count() == 66)
     ctx.set_offline(False)
 
     # manifest is valid json

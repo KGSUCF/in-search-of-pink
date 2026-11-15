@@ -26,7 +26,9 @@ function fakeGeocode(query) {
   let p = TEST_POINTS[a];
   if (!p) {
     const h = parseInt(crypto.createHash('md5').update(a).digest('hex').slice(0, 6), 16);
-    p = [26.0 + (h % 400) / 1000, -80.40 - ((h >> 9) % 50) / 1000];
+    p = /, RI$/.test(a)
+      ? [41.46 + (h % 60) / 1000, -71.30 - ((h >> 9) % 40) / 1000]   // made-up spots on Aquidneck Island
+      : [26.0 + (h % 400) / 1000, -80.40 - ((h >> 9) % 50) / 1000];
   }
   return { status: 'OK', results: [{ types: ['street_address'], geometry: { location: { lat: p[0], lng: p[1] } } }] };
 }
@@ -76,6 +78,16 @@ function makeSheet(name) {
 }
 
 const sheets = [makeSheet('Sheet1')];
+if (process.env.V1_GEO) { // map spots written by the first, Fort Lauderdale-only script
+  sheets[0].setName('Restaurants');
+  sheets[0].getRange(1, 1, 4, 7).setValues([
+    ['Restaurant', 'Pink packets?', 'Last updated', 'ID (leave alone)', 'Address', 'Map spot (from the address)', 'Spots saved on a phone'],
+    ['Tap 42', 'Pink', '', 'v1-1', '1411 S Andrews Ave', '26.10460,-80.14340', ''],
+    ['The Mooring', 'Pink', '', 'v1-2', '1 Sayers Wharf, Newport, RI', 'not found', ''],
+    ['Diego\u2019s', 'Pink', '', 'v1-3', '11 Bowens Wharf, Newport, RI', '26.12000,-80.14000', ''],
+  ]);
+  sheets[0].getRange(2, 6, 3, 1).setNotes([['1411 S Andrews Ave'], ['1 Sayers Wharf, Newport, RI'], ['11 Bowens Wharf, Newport, RI']]);
+}
 if (process.env.OLD_SHEET) { // a sheet made by the first version of the script: four columns, no addresses
   sheets[0].setName('Restaurants');
   sheets[0].getRange(1, 1, 3, 4).setValues([
