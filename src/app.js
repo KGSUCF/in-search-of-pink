@@ -1003,7 +1003,7 @@
           btn.disabled = false;
           btn.textContent = 'Connect';
           msg.hidden = false;
-          msg.textContent = 'Couldn’t reach the shared list at that link. Check that you copied the whole Web app URL and that “Who has access” is set to Anyone.';
+          msg.textContent = 'Couldn’t get the list from that link. To check it, open the link in Chrome. It should show a line starting {"ok":true. If it says “Script function not found: doGet”, the deployment doesn’t have the script yet: in Apps Script, save the script, then choose Deploy › Manage deployments, tap the pencil, pick New version, and Deploy. If it asks you to sign in, set “Who has access” to Anyone.';
         });
       });
       return;

@@ -32,7 +32,9 @@ The shared list also looks up each restaurant's address on the map, which is how
 3. In this repository, open [`google-sheet/Code.gs`](google-sheet/Code.gs), click **Copy raw file**, paste it into Apps Script, and click **Save**.
 4. Click **Deploy → New deployment**. Click the gear next to "Select type" and pick **Web app**. Set **Execute as: Me** and **Who has access: Anyone**, then click **Deploy**.
 5. Click **Authorize access** and pick your Google account. Google warns that it hasn't verified the app, because you wrote it yourself. Click **Advanced**, then **Go to In Search of Pink**, then **Allow**.
-6. Copy the **Web app URL** (it ends in `/exec`) and email it to yourself.
+6. Copy the **Web app URL** (it ends in `/exec`) and email it to yourself. To check it, open it in a browser: it should show a line of text starting with `{"ok":true`.
+   - **"Script function not found: doGet"** means the deployment was made before the script was saved. Make sure the script is saved: the function list next to **Run** should include `doGet`. Then choose **Deploy → Manage deployments**, click the pencil icon, pick **Version: New version**, and click **Deploy**. The link stays the same.
+   - **A sign-in page** means **Who has access** isn't set to **Anyone**. Change it in the same place.
 7. On your phone, open the app and tap the line under the title that says **On this phone only**. Paste the link and tap **Connect**. The spreadsheet fills in with the list and the addresses are found on the map.
 8. On the same screen, tap **Send…** or **Copy link** and text the invite link to the other phone.
 
@@ -70,4 +72,4 @@ Another way: install the app first, open it, tap **On this phone only**, and pas
 
 ## Updating the app
 
-After changing anything in `src/`, raise the number in `pink-v6` at the top of `src/sw.js`, then run `python3 src/build.py`. Phones pick up the new version the next time the app opens. Saved lists are not affected.
+After changing anything in `src/`, raise the number in `pink-v7` at the top of `src/sw.js`, then run `python3 src/build.py`. Phones pick up the new version the next time the app opens. Saved lists are not affected.
