@@ -72,4 +72,4 @@ Another way: install the app first, open it, tap **On this phone only**, and pas
 
 ## Updating the app
 
-After changing anything in `src/`, raise the number in `pink-v7` at the top of `src/sw.js`, then run `python3 src/build.py`. Phones pick up the new version the next time the app opens. Saved lists are not affected.
+After changing anything in `src/`, raise the number in `pink-v8` at the top of `src/sw.js`, then run `python3 src/build.py`. Phones pick up the new version the next time the app opens. Saved lists are not affected.

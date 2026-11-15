@@ -85,7 +85,7 @@
     return 'r' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
   }
   function norm(s) {
-    return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+    return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
       .replace(/&/g, ' and ').replace(/['‘’`´.]/g, '')
       .replace(/[^a-z0-9]+/g, ' ').trim();
   }

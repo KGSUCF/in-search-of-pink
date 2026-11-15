@@ -260,7 +260,7 @@ function applyOp_(items, op) {
 function has_(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
 
 function key_(s) {
-  return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+  return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '');
 }
 
