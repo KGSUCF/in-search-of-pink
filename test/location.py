@@ -40,6 +40,8 @@ def phone(browser, granted=True, scheme="light"):
     if granted:
         kw.update(permissions=["geolocation"], geolocation={"latitude": 38.72, "longitude": -9.14, "accuracy": 20})  # starts far away
     ctx = browser.new_context(**kw)
+    ctx.route("**/api/interpreter**", lambda r: r.abort())          # map lookups offline in this test
+    ctx.route("**nominatim.openstreetmap.org/**", lambda r: r.abort())
     page = ctx.new_page()
     page.on("pageerror", lambda e: errors.append(str(e)))
     page.on("console", lambda m: errors.append(m.text) if m.type == "error" and not any(x in m.text for x in ("ERR_TUNNEL", "ERR_FAILED", "ERR_INTERNET")) else None)
@@ -106,6 +108,7 @@ with sync_playwright() as p:
     t = here_text(A)
     check("nowhere: says nothing on the list is near", "No restaurant on your list is saved near here." in t)
     if SHOTS: A.screenshot(path=SHOTS + "/l5_none.png")
+    A.click('#here [data-here="whatshere"]'); A.wait_for_selector('#here [data-here="add"]', timeout=15000)
     A.click('#here [data-here="add"]'); A.wait_for_timeout(300)
     check("add sheet offers 'I’m here now', already ticked", A.locator("#fHere").is_checked())
     A.fill("#fName", "Casa Sensei"); A.fill("#fAddr", "1201 N Federal Hwy")

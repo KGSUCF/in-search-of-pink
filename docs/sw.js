@@ -1,5 +1,5 @@
 /* In Search of Pink: keeps the app working with no signal. Bump VERSION when the app files change. */
-var VERSION = 'pink-v9';
+var VERSION = 'pink-v10';
 var SHELL = [
   './',
   './index.html',

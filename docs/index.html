@@ -162,6 +162,13 @@ button { cursor: pointer; }
 .here-list { list-style: none; margin: 0; padding: 0; }
 .here-list li + li { border-top: 1px solid var(--line); }
 .here-list .row { min-height: 52px; padding: 8px 0; }
+.here-list .row .name small { display: block; font-size: 14px; font-weight: 400; color: var(--muted); }
+.add-chip {
+  flex: none; display: inline-grid; place-items: center; min-width: 64px; height: 30px; padding: 0 14px;
+  border: 2px solid var(--pink); border-radius: 15px; color: var(--pink-ink);
+  font: 700 13px/1 var(--f-body); letter-spacing: 0.1em; text-transform: uppercase;
+}
+.here-fine { margin: 0; font-size: 12px; color: var(--muted); }
 @keyframes bob { from { transform: translateY(0); } to { transform: translateY(-3px); } }
 
 /* Pinned search bar */
@@ -506,7 +513,7 @@ fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
   var installEvent = null;
 
   // Where are we?
-  var here = { state: 'off', best: null, watch: null, timer: 0, started: 0, pick: null, granted: false, fromAdd: false };
+  var here = { state: 'off', best: null, watch: null, timer: 0, started: 0, pick: null, granted: false, lookup: null, wantLookup: false };
   var lastFix = null;
 
   function $(s, root) { return (root || document).querySelector(s); }
@@ -980,6 +987,7 @@ fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
     lastFix = here.best;
     if (here.best.acc <= 20) stopWatch();
     if (here.state === 'locating' && (here.best.acc <= 100 || Date.now() - here.started > 5000 || here.watch === null)) here.state = 'located';
+    if (here.wantLookup && here.state === 'located') { runLookup(); return; }
     renderHere();
   }
   function onPosErr(e) {
@@ -988,6 +996,8 @@ fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
   function finishLocate() {
     stopWatch();
     if (here.state === 'locating') setHere(here.best ? 'located' : 'error');
+    if (here.wantLookup && here.state === 'located') runLookup();
+    here.wantLookup = false;
   }
   function setHere(s) { here.state = s; renderHere(); }
 
@@ -1019,7 +1029,7 @@ fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
     var s = here.state, kind = 'note', h = '';
     if (s === 'ask') {
       h = hereTop('Where are you eating?') +
-        '<p class="here-text">Let the app find the restaurant you’re at. Your location stays on this phone.</p>' +
+        '<p class="here-text">Let the app find the restaurant you’re at. Your location stays on this phone unless you ask the app to look a restaurant up.</p>' +
         '<div class="here-actions"><button type="button" class="btn" data-here="allow">' + PIN + 'Use my location</button></div>';
     } else if (s === 'locating') {
       kind = 'locating';
@@ -1036,7 +1046,9 @@ fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
     } else if (s === 'dismissed') {
       kind = 'quiet';
       h = '<p class="here-text">Search for the restaurant below.</p><div class="here-actions">' +
-        hereLink('again', 'Find me again') + hereLink('add', 'Add the restaurant you’re at') + '</div>';
+        hereLink('whatshere', 'What restaurant is this?') + hereLink('again', 'Find me again') + '</div>';
+    } else if (s === 'nearby' && here.lookup) {
+      h = nearbyHtml(here.lookup);
     } else if (s === 'located' && here.best) {
       var picked = here.pick && byId(here.pick);
       var g = picked ? { kind: 'match', it: picked, how: 'picked' } : guess(here.best);
@@ -1045,7 +1057,7 @@ fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
         h = matchHtml(g.it, g.how || (g.sure ? 'sure' : 'likely'));
       } else if (g.kind === 'choose') {
         h = hereTop('You’re near') + '<p class="here-title">Which one are you at?</p>' + candList(g.cands) +
-          '<div class="here-actions">' + hereLink('dismiss', 'None of these') + hereLink('again', 'Find me again') + '</div>';
+          '<div class="here-actions">' + hereLink('whatshere', 'None of these') + hereLink('again', 'Find me again') + '</div>';
       } else if (g.kind === 'fuzzy') {
         h = hereTop('Not sure where you are') +
           '<p class="here-title">Your location is only accurate to about ' + Math.round(g.acc / 50) * 50 + ' m right now.</p>' +
@@ -1058,12 +1070,13 @@ fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
           '<p class="here-text">' + (sync.url
             ? 'It’s looking up their addresses through the shared list. Try again in a minute.'
             : 'It looks up their addresses once the shared list is connected. You can also open a restaurant while you’re there and tap Save this spot.') +
-          ' For now, search below.</p><div class="here-actions">' + hereLink('again', 'Try again') + '</div>';
+          ' For now, search below.</p><div class="here-actions"><button type="button" class="btn small" data-here="whatshere">What restaurant is this?</button>' +
+          hereLink('again', 'Try again') + '</div>';
       } else {
         h = hereTop('Can\u2019t tell where you are') +
           '<p class="here-title">No restaurant on your list is saved near here.</p>' +
-          '<p class="here-text">Search for it below. If it’s on the list, open it and tap Save this spot so the app knows it next time.</p>' +
-          '<div class="here-actions"><button type="button" class="btn small" data-here="add">Add the restaurant you’re at</button>' +
+          '<p class="here-text">The app can look up the restaurant you\u2019re at and add it, address and all. Or search below.</p>' +
+          '<div class="here-actions"><button type="button" class="btn small" data-here="whatshere">What restaurant is this?</button>' +
           hereLink('again', 'Find me again') + '</div>';
       }
     } else {
@@ -1083,6 +1096,7 @@ fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
     if (here.best && here.state !== 'locating') here.state = 'located';
     closeSheet();
     commit('Saved this spot for ' + it.name + '.', before);
+    if (!it.address) fillAddress(it.id, spot[0], spot[1], null);
   }
   function markStatus(id, status) {
     var it = byId(id);
@@ -1103,7 +1117,173 @@ fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
     else if (act === 'edit') openEdit(id);
     else if (act === 'savespot') saveSpot(id);
     else if (act === 'add') openAdd('', { here: true });
+    else if (act === 'whatshere') whatsHere();
+    else if (act === 'back') { here.state = here.best ? 'located' : 'dismissed'; renderHere(); }
+    else if (act === 'near') {
+      var p = here.lookup && here.lookup.places[Number(b.getAttribute('data-i'))];
+      if (!p) return;
+      var m = listMatch(p.name);
+      if (m) claimPlace(p, m); else openAdd(p.name, { here: true, place: p });
+    }
   });
+  /* ---------- what restaurant is this? (OpenStreetMap) ---------- */
+  // Used only when asked: these lookups send the phone's location to OpenStreetMap.
+  var OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
+  var NOMINATIM = 'https://nominatim.openstreetmap.org/reverse';
+  var EATERIES = 'restaurant|cafe|bar|pub|fast_food|ice_cream|food_court|biergarten';
+
+  function getJSON(url, ms) {
+    var opts = { cache: 'no-store' }, timer = 0;
+    if (window.AbortController) {
+      var ctrl = new AbortController();
+      opts.signal = ctrl.signal;
+      timer = setTimeout(function () { ctrl.abort(); }, ms || 12000);
+    }
+    return fetch(url, opts).then(function (r) {
+      clearTimeout(timer);
+      if (!r.ok) throw new Error('status ' + r.status);
+      return r.json();
+    }, function (e) { clearTimeout(timer); throw e; });
+  }
+  function nearbyPlaces(fix) {
+    var r = Math.round(Math.min(150, Math.max(60, fix.acc + 40)));
+    var q = '[out:json][timeout:10];nwr(around:' + r + ',' + fix.lat.toFixed(6) + ',' + fix.lng.toFixed(6) + ')' +
+      '["name"]["amenity"~"^(' + EATERIES + ')$"];out center tags 40;';
+    function attempt(i) {
+      return getJSON(OVERPASS[i] + '?data=' + encodeURIComponent(q), 12000).catch(function (e) {
+        if (i + 1 < OVERPASS.length) return attempt(i + 1);
+        throw e;
+      });
+    }
+    return attempt(0).then(function (d) {
+      var seen = {}, out = [];
+      (d && d.elements || []).forEach(function (el) {
+        var t = el.tags || {};
+        var lat = el.lat != null ? el.lat : (el.center && el.center.lat);
+        var lng = el.lon != null ? el.lon : (el.center && el.center.lon);
+        if (!t.name || lat == null || lng == null) return;
+        var k = squash(t.name);
+        if (!k || seen[k]) return;
+        seen[k] = 1;
+        out.push({ name: tidy(t.name), lat: lat, lng: lng, tags: t, d: distM(fix, { lat: lat, lng: lng }) });
+      });
+      out.sort(function (a, b) { return a.d - b.d; });
+      return out.slice(0, 6);
+    });
+  }
+  function joinAddr(p) {
+    if (!p.street) return '';
+    var line = (p.num ? p.num + ' ' : '') + p.street;
+    var tail = [p.st, p.zip].filter(Boolean).join(' ');
+    var place = [p.town, tail].filter(Boolean).join(', ');
+    return place ? line + ', ' + place : line;
+  }
+  function reverseAddress(lat, lng) {
+    var url = NOMINATIM + '?format=jsonv2&addressdetails=1&zoom=18&lat=' + lat.toFixed(6) + '&lon=' + lng.toFixed(6);
+    return getJSON(url, 10000).then(function (d) {
+      var a = (d && d.address) || {};
+      var iso = String(a['ISO3166-2-lvl4'] || '').match(/^US-([A-Z]{2})$/);
+      return {
+        num: a.house_number || '',
+        street: a.road || a.pedestrian || a.footway || '',
+        town: a.city || a.town || a.village || a.hamlet || a.suburb || '',
+        st: iso ? iso[1] : (a.state || ''),
+        zip: a.postcode || ''
+      };
+    });
+  }
+  // A place's street address: its own OpenStreetMap address where it has one, filled out by a lookup.
+  function addressFor(lat, lng, tags) {
+    tags = tags || {};
+    var own = { num: tags['addr:housenumber'] || '', street: tags['addr:street'] || '', town: tags['addr:city'] || '',
+      st: tags['addr:state'] || '', zip: tags['addr:postcode'] || '' };
+    if (own.street && own.town && own.st) return Promise.resolve(joinAddr(own));
+    return reverseAddress(lat, lng).then(function (r) {
+      return joinAddr({
+        num: own.street ? own.num : r.num, street: own.street || r.street,
+        town: own.town || r.town, st: own.st || r.st, zip: own.zip || r.zip
+      });
+    }, function () { return joinAddr(own); });
+  }
+  // Is a restaurant OpenStreetMap lists here already on the list? ("Tap 42 Craft Kitchen" is "Tap 42")
+  function listMatch(name) {
+    var k = squash(name).replace(/^the(?=.{3})/, '');
+    if (k.length < 3) return null;
+    for (var i = 0; i < items.length; i++) {
+      var j = squash(items[i].name).replace(/^the(?=.{3})/, '');
+      if (j.length < 3) continue;
+      if (j === k || k.indexOf(j) === 0 || j.indexOf(k) === 0) return items[i];
+    }
+    return null;
+  }
+  function whatsHere() {
+    if (!here.best || Date.now() - here.best.t > 2 * 60000) { here.wantLookup = true; startLocate(); return; }
+    runLookup();
+  }
+  function runLookup() {
+    var token = { status: 'busy', places: [], fix: here.best };
+    here.wantLookup = false;
+    here.lookup = token;
+    here.state = 'nearby';
+    renderHere();
+    nearbyPlaces(token.fix).then(function (places) {
+      if (here.lookup !== token) return;
+      token.places = places;
+      token.status = 'done';
+      renderHere();
+    }, function () {
+      if (here.lookup !== token) return;
+      token.status = 'error';
+      renderHere();
+    });
+  }
+  function nearbyHtml(L) {
+    var h = hereTop('Restaurants right here', hereLink('back', 'Close'));
+    if (L.status === 'busy') return h + '<p class="here-text">Looking up restaurants around you…</p>';
+    if (L.status === 'error') {
+      h += '<p class="here-title">Couldn’t look up restaurants here.</p>' +
+        '<p class="here-text">Check your connection and try again, or add the restaurant yourself.</p>';
+    } else if (!L.places.length) {
+      h += '<p class="here-title">No restaurant is listed right here on the map.</p>' +
+        '<p class="here-text">Add it yourself. The app fills in the address.</p>';
+    } else {
+      h += '<p class="here-title">Which one are you at?</p><ul class="here-list">' + L.places.map(function (p, i) {
+        var m = listMatch(p.name);
+        return '<li><button class="row" type="button" data-here="near" data-i="' + i + '" aria-label="' + esc(p.name) +
+          (m ? ': on your list, ' + SAY[m.status] : ': add it') + '"><span class="name">' + esc(p.name) +
+          '<small>' + (m ? 'On your list' + (m.name !== p.name ? ' as ' + esc(m.name) : '') : 'Tap to add it') + '</small></span>' +
+          (m ? packet(m.status) : '<span class="add-chip" aria-hidden="true">Add</span>') + '</button></li>';
+      }).join('') + '</ul>';
+    }
+    return h + '<div class="here-actions"><button type="button" class="btn small" data-here="add">' +
+      (L.status === 'done' && L.places.length ? 'It’s not here: add it' : 'Add the restaurant you’re at') + '</button>' +
+      hereLink(L.status === 'error' ? 'whatshere' : 'again', L.status === 'error' ? 'Try again' : 'Find me again') + '</div>' +
+      '<p class="here-fine">Restaurant names and addresses come from OpenStreetMap, which gets your location for this lookup.</p>';
+  }
+  // A restaurant already on the list, found on the map: remember this spot and fill in its address.
+  function claimPlace(p, it) {
+    var before = snap(), spot = spotHere() || [round5(p.lat), round5(p.lng)];
+    if (!(it.spots || []).some(function (s) { return distM({ lat: s[0], lng: s[1] }, { lat: spot[0], lng: spot[1] }) <= 30; })) {
+      it.spots = (it.spots || []).concat([spot]).slice(-8);
+    }
+    here.pick = it.id;
+    here.state = 'located';
+    commit('Saved this spot for ' + it.name + '.', before);
+    if (!it.address) fillAddress(it.id, p.lat, p.lng, p.tags);
+  }
+  // Look up the street address and add it to a restaurant that has none.
+  function fillAddress(id, lat, lng, tags) {
+    addressFor(lat, lng, tags).then(function (a) {
+      var it = byId(id);
+      if (!a || !it || it.address) return;
+      var before = snap();
+      it.address = a;
+      it.geo = null;
+      it.geoState = 'pending';
+      commit('Added the address: ' + a + '.', before);
+    }, function () {});
+  }
+
   function initHere() {
     if (!IS_APP) return;
     if (!navigator.geolocation) { setHere('off'); return; }
@@ -1174,6 +1354,8 @@ fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
       '<p id="addMsg" class="warn" hidden></p>' +
       '<div class="field"><label for="fAddr">Street address <span class="opt">(optional)</span></label>' +
       '<input id="fAddr" type="text" autocomplete="off" autocapitalize="words" enterkeyhint="done" placeholder="450 E Las Olas Blvd"></div>' +
+      (canSpot && !opts.here ? '<div><button type="button" class="link" id="fillHere">I\u2019m here now: fill in the address</button></div>' : '') +
+      '<p class="hint" id="addrHint" hidden></p>' +
       (canSpot ? '<label class="check"><input type="checkbox" id="fHere"' + (opts.here ? ' checked' : '') + '>' +
         '<span>I’m at this restaurant now. Save this spot so the app recognizes it.</span></label>' : '') +
       choicesHtml(null) +
@@ -1182,6 +1364,25 @@ fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
       prefill ? 'h2' : '#fName'
     );
     var input = $('#fName', sheetEl), addr = $('#fAddr', sheetEl), msg = $('#addMsg', sheetEl), hereBox = $('#fHere', sheetEl);
+    var addrHint = $('#addrHint', sheetEl), fillBtn = $('#fillHere', sheetEl), place = opts.place || null;
+    function autoAddress(lat, lng, tags) {
+      addr.placeholder = 'Looking up the address\u2026';
+      addressFor(lat, lng, tags).then(function (a) {
+        if (!addr.isConnected) return;
+        addr.placeholder = '450 E Las Olas Blvd';
+        if (a && !addr.value.trim()) { addr.value = a; addrHint.hidden = false; addrHint.textContent = 'Address filled in from the map. Fix it if it\u2019s not right.'; }
+        else if (!a && !addr.value.trim()) { addrHint.hidden = false; addrHint.textContent = 'Couldn\u2019t find the address. Type it, or leave it blank: the saved spot is enough for the app to recognize it.'; }
+      });
+    }
+    if (place) autoAddress(place.lat, place.lng, place.tags);
+    else if (opts.here && freshFix()) autoAddress(lastFix.lat, lastFix.lng, null);
+    if (fillBtn) fillBtn.addEventListener('click', function () {
+      var f = freshFix();
+      if (!f) return;
+      if (hereBox) hereBox.checked = true;
+      fillBtn.parentNode.hidden = true;
+      autoAddress(f.lat, f.lng, null);
+    });
     function check() {
       var d = findByName(input.value);
       if (d) {
@@ -1197,7 +1398,7 @@ fieldset { border: 0; margin: 0; padding: 0; display: grid; gap: 10px; }
     $$('.choice', sheetEl).forEach(function (b) {
       b.addEventListener('click', function () {
         var name = tidy(input.value), status = b.getAttribute('data-status'), address = tidyAddr(addr.value);
-        var spot = hereBox && hereBox.checked ? spotHere() : null;
+        var spot = hereBox ? (hereBox.checked ? spotHere() : null) : (place ? [round5(place.lat), round5(place.lng)] : null);
         if (!name) {
           msg.hidden = false;
           msg.textContent = 'Type the restaurant’s name first.';

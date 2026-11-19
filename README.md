@@ -48,9 +48,11 @@ Another way: install the app first, open it, tap **On this phone only**, and pas
 
 - Each restaurant on the built-in list came with its street address. The shared list finds each address on the map. Newport addresses include the town and state (for example `31 Bowens Wharf, Newport, RI`); an address with no town is taken to be in Fort Lauderdale.
 - **Las Vegas** has about a dozen branches, so it starts without a location. Chains like Carrabba's and Cheesecake Factory start with their Fort Lauderdale branch only.
-- When you're at a restaurant the app doesn't recognize (or gets wrong), search for it, open it, and tap **Save this spot**. Next time it knows. Saved spots go to the other phone too.
+- When you're at a restaurant the app doesn't recognize, tap **What restaurant is this?** The app shows the restaurants right where you are. Tap one that's already on your list, and the app remembers this spot (and fills in its address if it had none). Tap a new one, and the Add screen opens with its name and address filled in.
+- You can also search for a restaurant, open it, and tap **Save this spot**. If it has no address yet, the address is filled in too. Next time the app knows it. Saved spots go to the other phone too.
+- Adding a restaurant you typed in search while you're there? Tap **I'm here now: fill in the address**.
 - On Las Olas, restaurants are only a few doors apart, so the app may ask **Which one are you at?** Pick one and tap **Save this spot for next time**, and it will know that one for sure.
-- Your location stays on the phone. The app only compares it with the list; it never sends it anywhere.
+- Recognizing a restaurant on your list happens on the phone. Looking one up (**What restaurant is this?**, filling in an address, or saving a spot for a restaurant with no address) asks OpenStreetMap, a free public map, so your location is sent there for that lookup. Nothing is sent unless you tap one of those.
 
 ## Good to know
 
@@ -72,4 +74,4 @@ Another way: install the app first, open it, tap **On this phone only**, and pas
 
 ## Updating the app
 
-After changing anything in `src/`, raise the number in `pink-v9` at the top of `src/sw.js`, then run `python3 src/build.py`. Phones pick up the new version the next time the app opens. Saved lists are not affected.
+After changing anything in `src/`, raise the number in `pink-v10` at the top of `src/sw.js`, then run `python3 src/build.py`. Phones pick up the new version the next time the app opens. Saved lists are not affected.
